@@ -1,0 +1,142 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-console */
+
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { adultKeywords } from '@/lib/yellow';
+
+import PageLayout from '@/components/PageLayout';
+import VideoCard from '@/components/VideoCard';
+
+import type { SearchResult } from '@/lib/types';
+
+/** 关键词对应的展示文案（不传就用关键词本身） */
+const KEYWORD_LABELS: Record<string, string> = {
+  伦理: '伦理片',
+  福利: '福利',
+  自拍: '自拍',
+  偷拍: '偷拍',
+  无码: '无码',
+  里番: '里番动漫',
+  三级: '三级片',
+  主播: '主播',
+  写真: '写真',
+  麻豆: '麻豆传媒',
+};
+
+interface AdultResponse {
+  results?: SearchResult[];
+  failedSources?: { name: string; error: string }[];
+}
+
+export default function AdultZonePage() {
+  const [keyword, setKeyword] = useState(adultKeywords[0]);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (kw: string) => {
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    try {
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(kw)}&adult=1`
+      );
+      if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
+      const data = (await res.json()) as AdultResponse;
+      const seen = new Set<string>();
+      const list = (data.results || []).filter((item) => {
+        const key = `${item.source}|${item.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setResults(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(keyword);
+  }, [keyword, load]);
+
+  const total = useMemo(() => results.length, [results]);
+
+  return (
+    <PageLayout activePath='/adult'>
+      <div className='px-4 sm:px-10 py-4 sm:py-8'>
+        <div className='mb-6'>
+          <h1 className='text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200'>
+            成人专区
+          </h1>
+          <p className='mt-1 text-sm text-gray-600 dark:text-gray-400'>
+            成人内容已从搜索与分类页隐藏，只在这里展示。仅限成年访客，内容来自第三方站点。
+          </p>
+        </div>
+
+        {/* 关键词切换 */}
+        <div className='mb-6 flex flex-wrap gap-2'>
+          {adultKeywords.map((kw) => (
+            <button
+              key={kw}
+              onClick={() => setKeyword(kw)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                keyword === kw
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-200/70 text-gray-700 hover:bg-gray-300/70 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-gray-600/60'
+              }`}
+            >
+              {KEYWORD_LABELS[kw] || kw}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <p className='mb-4 text-sm text-red-600 dark:text-red-400'>{error}</p>
+        )}
+
+        {loading ? (
+          <div className='py-16 text-center'>
+            <div className='mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-green-500' />
+            <p className='mt-3 text-sm text-gray-500 dark:text-gray-400'>
+              正在搜索「{KEYWORD_LABELS[keyword] || keyword}」…
+            </p>
+          </div>
+        ) : total === 0 ? (
+          <div className='py-16 text-center text-gray-500 dark:text-gray-400'>
+            这个关键词暂时没有内容，换一个试试。
+          </div>
+        ) : (
+          <>
+            <p className='mb-4 text-xs text-gray-500 dark:text-gray-400'>
+              共 {total} 条 · 来自 {new Set(results.map((r) => r.source)).size}{' '}
+              个源
+            </p>
+            <div className='grid grid-cols-3 gap-x-2 gap-y-12 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
+              {results.map((item) => (
+                <div key={`${item.source}-${item.id}`} className='w-full'>
+                  <VideoCard
+                    id={item.id}
+                    title={item.title || ''}
+                    poster={item.poster}
+                    episodes={item.episodes ? item.episodes.length : 0}
+                    source={item.source}
+                    source_name={item.source_name}
+                    year={item.year}
+                    query={item.title || ''}
+                    from='search'
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </PageLayout>
+  );
+}

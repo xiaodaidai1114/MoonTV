@@ -11,7 +11,7 @@ import {
   getConfig,
 } from '@/lib/config';
 import { searchFromApiStream } from '@/lib/downstream';
-import { yellowWords } from '@/lib/yellow';
+import { isYellowResult } from '@/lib/yellow';
 
 export const runtime = 'edge';
 
@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
   const searchConcurrency = clampSearchConcurrency(
     searchParams.get('concurrency')
   );
+
+  // 成人专区：只要命中成人分类的条目（普通搜索则相反，默认过滤掉）
+  const adultMode = searchParams.get('adult') === '1';
 
   if (!query) {
     // 空查询无需读取配置，也无需创建流，明确不缓存
@@ -89,11 +92,14 @@ export async function GET(request: NextRequest) {
           if (filteredResults.length !== 0) {
             hasResults = true;
           }
-          if (!config.SiteConfig.DisableYellowFilter) {
-            filteredResults = pageResults.filter((result) => {
-              const typeName = result.type_name || '';
-              return !yellowWords.some((word) => typeName.includes(word));
-            });
+          if (adultMode) {
+            filteredResults = pageResults.filter((result) =>
+              isYellowResult(result)
+            );
+          } else if (!config.SiteConfig.DisableYellowFilter) {
+            filteredResults = pageResults.filter(
+              (result) => !isYellowResult(result)
+            );
           }
           if (hasResults && filteredResults.length === 0) {
             throw new Error('结果被过滤');
@@ -199,11 +205,14 @@ export async function GET(request: NextRequest) {
           if (filteredResults.length !== 0) {
             hasResults = true;
           }
-          if (!config.SiteConfig.DisableYellowFilter) {
-            filteredResults = pageResults.filter((result) => {
-              const typeName = result.type_name || '';
-              return !yellowWords.some((word) => typeName.includes(word));
-            });
+          if (adultMode) {
+            filteredResults = pageResults.filter((result) =>
+              isYellowResult(result)
+            );
+          } else if (!config.SiteConfig.DisableYellowFilter) {
+            filteredResults = pageResults.filter(
+              (result) => !isYellowResult(result)
+            );
           }
 
           if (hasResults && filteredResults.length === 0) {

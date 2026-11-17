@@ -2,17 +2,7 @@
 
 'use client';
 
-import {
-  Cat,
-  Clapperboard,
-  Clover,
-  Compass,
-  Film,
-  Home,
-  Search,
-  Trophy,
-  Tv,
-} from 'lucide-react';
+import { Cat, Clapperboard, Clover, Compass, Film, Home, Search, Trophy, Tv, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useState } from 'react';
@@ -74,6 +64,11 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       icon: Trophy,
       label: '榜单',
       href: '/ranking',
+    },
+    {
+      icon: Flame,
+      label: '专区',
+      href: '/adult',
     },
   ]);
 
