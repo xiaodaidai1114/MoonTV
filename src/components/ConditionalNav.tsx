@@ -16,7 +16,9 @@ const ConditionalNav = () => {
   const pathname = usePathname();
 
   // 不显示导航栏的路径列表
-  const hideNavPaths = ['/login', '/warning'];
+  // 注册页同样是匿名可访问的独立页面，不能挂导航栏：
+  // 导航栏的数据请求在未登录时会返回 401，进而把用户踢回登录页
+  const hideNavPaths = ['/login', '/register', '/warning'];
 
   // 检查当前路径是否需要隐藏导航栏
   const shouldHideNav = hideNavPaths.some(path => pathname.startsWith(path));
