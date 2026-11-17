@@ -180,6 +180,9 @@ function buildReadonlySettingRows(items: string[]) {
 /** 「画质」设置项的 name，`setting.update` 靠它定位 */
 const QUALITY_SETTING_NAME = '画质';
 
+/** 记住用户选的播放倍速（横屏竖屏、换集都沿用） */
+const PLAYBACK_RATE_KEY = 'playbackRate';
+
 /** 「视频缓存」设置项的 name */
 const CACHE_SETTING_NAME = '视频缓存';
 
@@ -2809,6 +2812,33 @@ export function usePlayEngine() {
         },
         settings: [
           {
+            name: '倍速',
+            html: '播放速度',
+            tooltip: '选择播放速度',
+            selector: [
+              { html: '0.5x', value: 0.5 },
+              { html: '0.75x', value: 0.75 },
+              { html: '正常', value: 1 },
+              { html: '1.25x', value: 1.25 },
+              { html: '1.5x', value: 1.5 },
+              { html: '2x', value: 2 },
+              { html: '2.5x', value: 2.5 },
+              { html: '3x', value: 3 },
+            ],
+            onSelect(item: any) {
+              const rate = Number(item?.value) || 1;
+              try {
+                localStorage.setItem(PLAYBACK_RATE_KEY, String(rate));
+              } catch {
+                // 隐私模式忽略
+              }
+              if (artPlayerRef.current) {
+                artPlayerRef.current.playbackRate = rate;
+              }
+              return rate === 1 ? '正常' : `${rate}x`;
+            },
+          },
+          {
             html: '去广告',
             icon: '<text x="50%" y="50%" font-size="20" font-weight="bold" text-anchor="middle" dominant-baseline="middle" fill="#ffffff">AD</text>',
             tooltip: blockAdEnabled ? '已开启 · 自动剔除广告分片' : '已关闭',
@@ -3120,8 +3150,8 @@ export function usePlayEngine() {
         setPlayerHost(playerEl);
       }
 
-      // 全屏时尽量切到横屏：Android Chrome 在原生全屏下支持
-      // screen.orientation.lock；iOS Safari 不支持，会静默失败
+      // 全屏方向：横屏视频才请求横屏，竖屏视频（短剧/竖版）保持竖屏铺满。
+      // Android Chrome 在原生全屏下支持 screen.orientation.lock；iOS Safari 不支持，会静默失败。
       const requestLandscape = async () => {
         try {
           const orientation = (window.screen as any)?.orientation;
@@ -3137,19 +3167,47 @@ export function usePlayEngine() {
           // ignore
         }
       };
+      const videoIsWide = () => {
+        const video = artPlayerRef.current?.video as
+          | HTMLVideoElement
+          | null
+          | undefined;
+        if (!video?.videoWidth || !video.videoHeight) return true;
+        return video.videoWidth >= video.videoHeight;
+      };
+      const syncFullscreenOrientation = (entered: boolean) => {
+        if (!entered) {
+          releaseOrientation();
+          return;
+        }
+        if (videoIsWide()) void requestLandscape();
+        else releaseOrientation();
+      };
 
       // 监听播放器事件
-      artPlayerRef.current.on('fullscreen', (state: boolean) => {
-        if (state) void requestLandscape();
-        else releaseOrientation();
-      });
-      artPlayerRef.current.on('fullscreenWeb', (state: boolean) => {
-        if (state) void requestLandscape();
-        else releaseOrientation();
-      });
+      artPlayerRef.current.on('fullscreen', syncFullscreenOrientation);
+      artPlayerRef.current.on('fullscreenWeb', syncFullscreenOrientation);
 
       artPlayerRef.current.on('ready', () => {
         setError(null);
+
+        // 恢复上次选择的倍速
+        try {
+          const savedRate = Number(
+            window.localStorage.getItem(PLAYBACK_RATE_KEY)
+          );
+          if (
+            Number.isFinite(savedRate) &&
+            savedRate >= 0.25 &&
+            savedRate <= 4 &&
+            savedRate !== 1 &&
+            artPlayerRef.current
+          ) {
+            artPlayerRef.current.playbackRate = savedRate;
+          }
+        } catch {
+          // 隐私模式忽略
+        }
 
         // 首次进入播放页时只提示一次帮助入口
         try {
