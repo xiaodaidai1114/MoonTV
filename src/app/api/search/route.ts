@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { clampSearchConcurrency, mapWithConcurrency } from '@/lib/concurrency';
@@ -12,6 +12,7 @@ import {
 } from '@/lib/config';
 import { searchFromApiStream } from '@/lib/downstream';
 import { isYellowResult } from '@/lib/yellow';
+import { ADULT_ZONE_COOKIE, verifyAdultZoneToken } from '@/lib/adult-zone';
 
 export const runtime = 'edge';
 
@@ -47,6 +48,14 @@ export async function GET(request: NextRequest) {
 
   // 成人专区：只要命中成人分类的条目（普通搜索则相反，默认过滤掉）
   const adultMode = searchParams.get('adult') === '1';
+  if (
+    adultMode &&
+    !(await verifyAdultZoneToken(
+      request.cookies.get(ADULT_ZONE_COOKIE)?.value
+    ))
+  ) {
+    return NextResponse.json({ error: '需要专区口令' }, { status: 401 });
+  }
 
   if (!query) {
     // 空查询无需读取配置，也无需创建流，明确不缓存

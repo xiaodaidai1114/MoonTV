@@ -36,6 +36,59 @@ export default function AdultZonePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 口令门：locked 表示站点设置了口令，authorized 表示本次已通过
+  const [gateReady, setGateReady] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [authorized, setAuthorized] = useState(true);
+  const [password, setPassword] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [gateError, setGateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/adult/auth', { cache: 'no-store' });
+        const data = await res.json();
+        if (cancelled) return;
+        setLocked(Boolean(data.locked));
+        setAuthorized(Boolean(data.authorized));
+      } catch {
+        if (!cancelled) setAuthorized(false);
+      } finally {
+        if (!cancelled) setGateReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const submitPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!password.trim()) return;
+    setVerifying(true);
+    setGateError(null);
+    try {
+      const res = await fetch('/api/adult/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password.trim() }),
+      });
+      if (res.ok) {
+        setAuthorized(true);
+        setPassword('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setGateError(data.error || '口令不正确');
+      }
+    } catch {
+      setGateError('网络错误，请重试');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const load = useCallback(async (kw: string) => {
     setLoading(true);
     setError(null);
@@ -62,10 +115,52 @@ export default function AdultZonePage() {
   }, []);
 
   useEffect(() => {
+    if (!gateReady || !authorized) return;
     void load(keyword);
-  }, [keyword, load]);
+  }, [keyword, load, gateReady, authorized]);
 
   const total = useMemo(() => results.length, [results]);
+
+  if (gateReady && locked && !authorized) {
+    return (
+      <PageLayout activePath='/adult'>
+        <div className='flex min-h-[60vh] items-center justify-center px-4 py-10'>
+          <form
+            onSubmit={submitPassword}
+            className='w-full max-w-sm rounded-2xl bg-white/80 p-6 shadow-lg backdrop-blur dark:bg-zinc-900/80 dark:border dark:border-zinc-800'
+          >
+            <h1 className='text-center text-xl font-bold text-gray-800 dark:text-gray-100'>
+              成人专区
+            </h1>
+            <p className='mt-2 text-center text-xs text-gray-500 dark:text-gray-400'>
+              该专区需要访问口令，避免误入
+            </p>
+            <input
+              type='password'
+              inputMode='numeric'
+              autoComplete='off'
+              className='mt-5 w-full rounded-lg border-0 px-4 py-3 text-center text-lg tracking-widest text-gray-900 shadow-sm ring-1 ring-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-zinc-800 dark:text-gray-100 dark:ring-zinc-700'
+              placeholder='请输入访问口令'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {gateError && (
+              <p className='mt-3 text-sm text-red-600 dark:text-red-400'>
+                {gateError}
+              </p>
+            )}
+            <button
+              type='submit'
+              disabled={verifying || !password.trim()}
+              className='mt-4 w-full rounded-lg bg-green-600 py-3 text-base font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50'
+            >
+              {verifying ? '校验中...' : '进入专区'}
+            </button>
+          </form>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout activePath='/adult'>
