@@ -1,0 +1,2 @@
+/Users/xingyun/devlopment_project/moomntv/apk/src/com/moontv/app/MainActivity.java
+/Users/xingyun/devlopment_project/moomntv/apk/build/gen/com/moontv/app/R.java
