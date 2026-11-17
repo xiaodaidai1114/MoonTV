@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
@@ -15,6 +16,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -34,6 +36,28 @@ public class MainActivity extends Activity {
     private static final String PREFS = "moontv";
     private static final String KEY_SERVER = "server_url";
     private static final String UA_SUFFIX = " MoonTVApp/1.0";
+
+    /**
+     * 监听播放器的全屏状态：ArtPlayer 的「网页全屏」只是加了个 class，
+     * 不会触发 WebChromeClient.onShowCustomView，所以这里主动观察。
+     */
+    private static final String ORIENTATION_WATCHER_JS =
+            "(function(){"
+          + "if(window.__moonOriWatch){return;}window.__moonOriWatch=true;"
+          + "var last=false;"
+          + "function fullscreenOn(){"
+          + "  if(document.fullscreenElement){return true;}"
+          + "  if(document.body&&document.body.classList.contains('art-fullscreen-web')){return true;}"
+          + "  var el=document.querySelector('.art-video-player');"
+          + "  if(el&&((el.classList.contains('art-fullscreen-web'))||(el.classList.contains('art-fullscreen')))){return true;}"
+          + "  return false;"
+          + "}"
+          + "function check(){var on=fullscreenOn();if(on!==last){last=on;"
+          + "  try{window.MoonTVShell.setLandscape(on);}catch(e){}}}"
+          + "document.addEventListener('fullscreenchange',check);"
+          + "try{new MutationObserver(check).observe(document.documentElement,{attributes:true,subtree:true,attributeFilter:['class']});}catch(e){}"
+          + "setInterval(check,600);"
+          + "})();";
 
     private static final String[][] KNOWN_SERVERS = {
         { "东京", "http://43.163.211.88:3000" },
@@ -99,6 +123,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
+                view.evaluateJavascript(ORIENTATION_WATCHER_JS, null);
             }
 
             @Override
@@ -130,6 +155,7 @@ public class MainActivity extends Activity {
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
                 getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 setFullscreen(true);
+                applyOrientation(true);
             }
 
             @Override
@@ -140,6 +166,7 @@ public class MainActivity extends Activity {
                 webView.setVisibility(View.VISIBLE);
                 getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 setFullscreen(false);
+                applyOrientation(false);
                 if (customViewCallback != null) {
                     customViewCallback.onCustomViewHidden();
                     customViewCallback = null;
@@ -147,6 +174,19 @@ public class MainActivity extends Activity {
             }
         };
         webView.setWebChromeClient(chromeClient);
+
+        // 让网页能通知外壳旋转屏幕（ArtPlayer 的网页全屏是 CSS 实现的，不会触发 onShowCustomView）
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void setLandscape(final boolean landscape) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        applyOrientation(landscape);
+                    }
+                });
+            }
+        }, "MoonTVShell");
 
         String saved = prefs().getString(KEY_SERVER, null);
         if (saved == null || saved.trim().isEmpty()) {
@@ -294,6 +334,17 @@ public class MainActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
             decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        }
+    }
+
+    /** 全屏时切横屏，退出时交还给系统（跟随重力/锁定） */
+    private void applyOrientation(boolean landscape) {
+        try {
+            setRequestedOrientation(landscape
+                    ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        } catch (Exception ignored) {
+            // 个别机型不支持，忽略
         }
     }
 

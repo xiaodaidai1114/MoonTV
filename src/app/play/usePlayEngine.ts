@@ -3120,7 +3120,34 @@ export function usePlayEngine() {
         setPlayerHost(playerEl);
       }
 
+      // 全屏时尽量切到横屏：Android Chrome 在原生全屏下支持
+      // screen.orientation.lock；iOS Safari 不支持，会静默失败
+      const requestLandscape = async () => {
+        try {
+          const orientation = (window.screen as any)?.orientation;
+          if (orientation?.lock) await orientation.lock('landscape');
+        } catch {
+          // 不支持或被拒绝时忽略
+        }
+      };
+      const releaseOrientation = () => {
+        try {
+          (window.screen as any)?.orientation?.unlock?.();
+        } catch {
+          // ignore
+        }
+      };
+
       // 监听播放器事件
+      artPlayerRef.current.on('fullscreen', (state: boolean) => {
+        if (state) void requestLandscape();
+        else releaseOrientation();
+      });
+      artPlayerRef.current.on('fullscreenWeb', (state: boolean) => {
+        if (state) void requestLandscape();
+        else releaseOrientation();
+      });
+
       artPlayerRef.current.on('ready', () => {
         setError(null);
 
