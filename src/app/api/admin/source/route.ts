@@ -10,7 +10,7 @@ import { IStorage } from '@/lib/types';
 export const runtime = 'edge';
 
 // 支持的操作类型
-type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort' | 'batchDisable' | 'batchEnable' | 'batchDelete';
+type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort' | 'batchDisable' | 'batchEnable' | 'batchDelete' | 'setAdult' | 'batchSetAdult';
 
 interface BaseBody {
   action?: Action;
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const username = authInfo.username;
 
     // 基础校验
-    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort', 'batchDisable', 'batchEnable', 'batchDelete'];
+    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort', 'batchDisable', 'batchEnable', 'batchDelete', 'setAdult', 'batchSetAdult'];
     if (!username || !action || !ACTIONS.includes(action)) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -58,6 +58,31 @@ export async function POST(request: NextRequest) {
     }
 
     switch (action) {
+      case 'setAdult': {
+        const { key: sourceKey, adult } = body as {
+          key?: string;
+          adult?: boolean;
+        };
+        if (!sourceKey || typeof adult !== 'boolean') {
+          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+        }
+        const entry = adminConfig.SourceConfig.find((s) => s.key === sourceKey);
+        if (!entry) {
+          return NextResponse.json({ error: '源不存在' }, { status: 404 });
+        }
+        entry.adult = adult;
+        break;
+      }
+      case 'batchSetAdult': {
+        const { keys, adult } = body as { keys?: string[]; adult?: boolean };
+        if (!Array.isArray(keys) || typeof adult !== 'boolean') {
+          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+        }
+        for (const entry of adminConfig.SourceConfig) {
+          if (keys.includes(entry.key)) entry.adult = adult;
+        }
+        break;
+      }
       case 'add': {
         const { key, name, api, detail } = body as {
           key?: string;

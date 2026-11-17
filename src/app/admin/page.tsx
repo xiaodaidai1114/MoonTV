@@ -1574,6 +1574,30 @@ const VideoSourceConfig = ({
     setSelectedSources(newSelected);
   };
 
+  // 批量标记 / 取消成人源（成人源不参与普通搜索，只在成人专区出现）
+  const handleBatchSetAdult = async (adult: boolean) => {
+    if (selectedSources.size === 0) return;
+    const { isConfirmed } = await Swal.fire({
+      title: adult ? '标记为成人源' : '取消成人源标记',
+      text: `将对选中的 ${selectedSources.size} 个源${adult ? '标记为成人源（普通搜索不再查询）' : '取消成人标记'}`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    });
+    if (!isConfirmed) return;
+    try {
+      await callSourceApi({
+        action: 'batchSetAdult',
+        keys: Array.from(selectedSources),
+        adult,
+      });
+      await refreshConfig();
+    } catch (err) {
+      console.error('设置成人源失败', err);
+    }
+  };
+
   const handleBatchDisable = async () => {
     if (selectedSources.size === 0) return;
     
@@ -1803,6 +1827,20 @@ const VideoSourceConfig = ({
               >
                 <ChevronDown size={14} />
                 批量禁用
+              </button>
+              <button
+                onClick={() => handleBatchSetAdult(true)}
+                disabled={selectedSources.size === 0}
+                className='px-3 py-1 bg-pink-600 hover:bg-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center gap-1'
+              >
+                标记成人
+              </button>
+              <button
+                onClick={() => handleBatchSetAdult(false)}
+                disabled={selectedSources.size === 0}
+                className='px-3 py-1 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center gap-1'
+              >
+                取消成人
               </button>
               <button
                 onClick={handleBatchDelete}

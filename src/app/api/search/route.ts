@@ -13,6 +13,7 @@ import {
 import { searchFromApiStream } from '@/lib/downstream';
 import { isYellowResult } from '@/lib/yellow';
 import { ADULT_ZONE_COOKIE, verifyAdultZoneToken } from '@/lib/adult-zone';
+import { canSeeAdultZone, getRequestRole } from '@/lib/adult-guard';
 
 export const runtime = 'edge';
 
@@ -48,13 +49,18 @@ export async function GET(request: NextRequest) {
 
   // 成人专区：只要命中成人分类的条目（普通搜索则相反，默认过滤掉）
   const adultMode = searchParams.get('adult') === '1';
-  if (
-    adultMode &&
-    !(await verifyAdultZoneToken(
-      request.cookies.get(ADULT_ZONE_COOKIE)?.value
-    ))
-  ) {
-    return NextResponse.json({ error: '需要专区口令' }, { status: 401 });
+  if (adultMode) {
+    const role = await getRequestRole(request);
+    if (!canSeeAdultZone(role)) {
+      return NextResponse.json({ error: '仅管理员可访问' }, { status: 403 });
+    }
+    if (
+      !(await verifyAdultZoneToken(
+        request.cookies.get(ADULT_ZONE_COOKIE)?.value
+      ))
+    ) {
+      return NextResponse.json({ error: '需要专区口令' }, { status: 401 });
+    }
   }
 
   if (!query) {
@@ -73,6 +79,11 @@ export async function GET(request: NextRequest) {
 
   // 获取用户可用的搜索源
   let apiSites = await getAvailableApiSites(authInfo?.username);
+
+  // 按源标记分流：普通搜索跳过成人源，专区只查成人源
+  apiSites = apiSites.filter((site) =>
+    adultMode ? site.adult === true : site.adult !== true
+  );
 
   // 如果指定了搜索源，只使用选中的搜索源
   const selectedSourcesParam = searchParams.get('sources');

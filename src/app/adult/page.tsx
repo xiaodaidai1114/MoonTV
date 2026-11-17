@@ -38,6 +38,7 @@ export default function AdultZonePage() {
 
   // 口令门：locked 表示站点设置了口令，authorized 表示本次已通过
   const [gateReady, setGateReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(true);
   const [locked, setLocked] = useState(false);
   const [authorized, setAuthorized] = useState(true);
   const [password, setPassword] = useState('');
@@ -51,6 +52,7 @@ export default function AdultZonePage() {
         const res = await fetch('/api/adult/auth', { cache: 'no-store' });
         const data = await res.json();
         if (cancelled) return;
+        setIsAdmin(data.admin !== false);
         setLocked(Boolean(data.locked));
         setAuthorized(Boolean(data.authorized));
       } catch {
@@ -120,6 +122,29 @@ export default function AdultZonePage() {
   }, [keyword, load, gateReady, authorized]);
 
   const total = useMemo(() => results.length, [results]);
+
+  if (gateReady && !isAdmin) {
+    return (
+      <PageLayout activePath='/adult'>
+        <div className='flex min-h-[60vh] items-center justify-center px-4'>
+          <div className='max-w-sm text-center'>
+            <h1 className='text-xl font-bold text-gray-800 dark:text-gray-100'>
+              无权访问
+            </h1>
+            <p className='mt-2 text-sm text-gray-500 dark:text-gray-400'>
+              成人专区仅对管理员开放。
+            </p>
+            <a
+              href='/'
+              className='mt-6 inline-block rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700'
+            >
+              返回首页
+            </a>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
 
   if (gateReady && locked && !authorized) {
     return (

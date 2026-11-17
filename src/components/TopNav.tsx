@@ -114,7 +114,25 @@ const TopNav = ({ activePath }: TopNavProps) => {
       if (src) setSearchSources(src.split(','));
     }
   }, [pathname, searchParams]);
-  const menuItems = [
+  // 成人专区只对管理员显示
+  const [showAdultZone, setShowAdultZone] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/adult/auth', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled) setShowAdultZone(data?.admin === true);
+      } catch {
+        // 取不到就当作没有权限
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const menuItemsAll = [
     { icon: Film, label: '电影', href: '/douban?type=movie' },
     { icon: Tv, label: '剧集', href: '/douban?type=tv' },
     { icon: Clapperboard, label: '短剧', href: '/douban?type=short' },
@@ -124,6 +142,9 @@ const TopNav = ({ activePath }: TopNavProps) => {
     { icon: Trophy, label: '榜单', href: '/ranking' },
     { icon: Flame, label: '专区', href: '/adult' },
   ];
+  const menuItems = menuItemsAll.filter(
+    (item) => item.href !== '/adult' || showAdultZone
+  );
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchQuery.trim();

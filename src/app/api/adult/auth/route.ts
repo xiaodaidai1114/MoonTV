@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { canSeeAdultZone, getRequestRole } from '@/lib/adult-guard';
 import {
   ADULT_ZONE_COOKIE,
   ADULT_ZONE_MAX_AGE_SECONDS,
@@ -14,10 +15,13 @@ export const runtime = 'edge';
 /** 查询当前是否已通过口令 */
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(ADULT_ZONE_COOKIE)?.value;
+  const admin = canSeeAdultZone(await getRequestRole(request));
   return NextResponse.json(
     {
+      admin,
       locked: isAdultZoneLocked(),
-      authorized: await verifyAdultZoneToken(token),
+      // 非管理员一律视为未授权，前端据此隐藏内容
+      authorized: admin && (await verifyAdultZoneToken(token)),
     },
     { headers: { 'Cache-Control': 'no-store' } }
   );
@@ -25,6 +29,10 @@ export async function GET(request: NextRequest) {
 
 /** 校验口令并下发 cookie */
 export async function POST(request: NextRequest) {
+  if (!canSeeAdultZone(await getRequestRole(request))) {
+    return NextResponse.json({ error: '仅管理员可访问成人专区' }, { status: 403 });
+  }
+
   if (!isAdultZoneLocked()) {
     return NextResponse.json({ ok: true, locked: false });
   }

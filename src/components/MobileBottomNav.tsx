@@ -27,7 +27,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   const currentActive =
     activePath ?? (searchQuery ? `${pathname}?${searchQuery}` : pathname);
 
-  const [navItems] = useState([
+  const [navItemsAll] = useState([
     { icon: Home, label: '首页', href: '/' },
     { icon: Search, label: '搜索', href: '/search' },
     {
@@ -71,6 +71,27 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       href: '/adult',
     },
   ]);
+
+  // 成人专区只对管理员显示
+  const [showAdultZone, setShowAdultZone] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/adult/auth', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled) setShowAdultZone(data?.admin === true);
+      } catch {
+        // 取不到就当作没有权限
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const navItems = navItemsAll.filter(
+    (item) => item.href !== '/adult' || showAdultZone
+  );
 
   // 检查是否启用简洁模式 - 使用状态管理
   const [simpleMode, setSimpleMode] = useState(false);

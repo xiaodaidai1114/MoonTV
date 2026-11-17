@@ -53,6 +53,8 @@ export interface AdminConfig {
     detail?: string;
     from: 'config' | 'custom';
     disabled?: boolean;
+    /** 标记为成人源：普通搜索跳过，只出现在成人专区 */
+    adult?: boolean;
   }[];
   CustomCategories: {
     name?: string;

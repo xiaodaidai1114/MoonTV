@@ -7,6 +7,7 @@ import { getDefaultPlaybackSaveInterval } from './playback-settings';
 import runtimeConfig from './runtime';
 
 export interface ApiSite {
+  adult?: boolean;
   key: string;
   api: string;
   name: string;
@@ -836,20 +837,20 @@ export async function getAvailableApiSites(username?: string): Promise<ApiSite[]
   const config = await getConfig();
   const all = config.SourceConfig.filter((s) => !s.disabled);
   if (!username || !config.UserConfig?.Groups || config.UserConfig.Groups.length === 0) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
   }
   const user = config.UserConfig.Users.find((u) => u.username === username);
   const groupName = user?.group;
   if (!groupName) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
   }
   const group = config.UserConfig.Groups.find((g) => g.name === groupName);
   if (!group) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
   }
   const allowed = new Set(group.sourceKeys);
   const filtered = all.filter((s) => allowed.has(s.key));
-  return filtered.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail }));
+  return filtered.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
 }
 
 export async function setCachedConfig(config: AdminConfig) {
