@@ -148,7 +148,17 @@ interface UserConfigProps {
 const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
   const [userSettings, setUserSettings] = useState({
     enableRegistration: false,
+    inviteRequired: false,
   });
+  // 邀请码生成表单与生成结果
+  const [inviteForm, setInviteForm] = useState({
+    count: 5,
+    maxUses: 1,
+    expiresInDays: 0,
+    note: '',
+  });
+  const [inviteCreating, setInviteCreating] = useState(false);
+  const [newInviteCodes, setNewInviteCodes] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [batchGroupName, setBatchGroupName] = useState<string>('');
   const [_selectedGroupInDialog, setSelectedGroupInDialog] = useState<string>('');
@@ -175,9 +185,107 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
     if (config?.UserConfig) {
       setUserSettings({
         enableRegistration: config.UserConfig.AllowRegister,
+        inviteRequired: config.UserConfig.InviteCodeRequired === true,
       });
     }
   }, [config]);
+
+  // 邀请码列表（新的在前）
+  const inviteCodes = [...(config?.UserConfig.InviteCodes || [])].sort(
+    (a, b) => b.createdAt - a.createdAt
+  );
+
+  // 切换「注册需要邀请码」
+  const toggleInviteRequired = async (value: boolean) => {
+    try {
+      setUserSettings((prev) => ({ ...prev, inviteRequired: value }));
+      const res = await fetch('/api/admin/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setInviteCodeRequired',
+          inviteCodeRequired: value,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `操作失败: ${res.status}`);
+      }
+      await refreshConfig();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '操作失败');
+      setUserSettings((prev) => ({ ...prev, inviteRequired: !value }));
+    }
+  };
+
+  // 生成邀请码
+  const handleCreateInviteCodes = async () => {
+    try {
+      setInviteCreating(true);
+      const res = await fetch('/api/admin/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'createInviteCodes',
+          inviteOptions: {
+            count: Number(inviteForm.count) || 1,
+            maxUses: Number(inviteForm.maxUses) || 1,
+            expiresInDays: Number(inviteForm.expiresInDays) || 0,
+            note: inviteForm.note.trim(),
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `生成失败: ${res.status}`);
+      const codes: string[] = Array.isArray(data.codes) ? data.codes : [];
+      setNewInviteCodes(codes);
+      showSuccess(`已生成 ${codes.length} 个邀请码`);
+      await refreshConfig();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '生成失败');
+    } finally {
+      setInviteCreating(false);
+    }
+  };
+
+  const handleInviteCodeAction = async (
+    action: 'deleteInviteCode' | 'toggleInviteCode',
+    code: string,
+    disabled?: boolean
+  ) => {
+    try {
+      const res = await fetch('/api/admin/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          inviteCode: code,
+          ...(action === 'toggleInviteCode' ? { inviteDisabled: disabled } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `操作失败: ${res.status}`);
+      await refreshConfig();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : '操作失败');
+    }
+  };
+
+  // 复制到剪贴板（不支持时退化为弹窗展示）
+  const copyInviteCodes = async (codes: string[]) => {
+    if (!codes.length) return;
+    const text = codes.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess(`已复制 ${codes.length} 个邀请码`);
+    } catch {
+      Swal.fire({
+        title: '邀请码',
+        html: `<pre style="white-space:pre-wrap;text-align:left">${text}</pre>`,
+        confirmButtonText: '关闭',
+      });
+    }
+  };
 
   // 切换允许注册设置
   const toggleAllowRegister = async (value: boolean) => {
@@ -730,6 +838,249 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
                 }`}
             />
           </button>
+        </div>
+
+        {/* 邀请码注册 */}
+        <div className='mt-4 p-4 rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/40'>
+          <div className='flex items-center justify-between gap-3'>
+            <div>
+              <div className='text-gray-700 dark:text-gray-300'>
+                注册需要邀请码
+              </div>
+              <div className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                开启后新用户必须在登录页填写邀请码才能注册
+              </div>
+            </div>
+            <button
+              onClick={() => toggleInviteRequired(!userSettings.inviteRequired)}
+              disabled={!userSettings.enableRegistration}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-40 ${userSettings.inviteRequired
+                ? 'bg-green-600'
+                : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${userSettings.inviteRequired
+                  ? 'translate-x-6'
+                  : 'translate-x-1'
+                  }`}
+              />
+            </button>
+          </div>
+
+          {/* 生成表单 */}
+          <div className='mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3'>
+            <label className='text-xs text-gray-600 dark:text-gray-400'>
+              数量
+              <input
+                type='number'
+                min={1}
+                max={200}
+                value={inviteForm.count}
+                onChange={(e) =>
+                  setInviteForm({ ...inviteForm, count: Number(e.target.value) })
+                }
+                className='mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100'
+              />
+            </label>
+            <label className='text-xs text-gray-600 dark:text-gray-400'>
+              每个可用次数
+              <input
+                type='number'
+                min={1}
+                value={inviteForm.maxUses}
+                onChange={(e) =>
+                  setInviteForm({ ...inviteForm, maxUses: Number(e.target.value) })
+                }
+                className='mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100'
+              />
+            </label>
+            <label className='text-xs text-gray-600 dark:text-gray-400'>
+              有效期（天，0=永久）
+              <input
+                type='number'
+                min={0}
+                value={inviteForm.expiresInDays}
+                onChange={(e) =>
+                  setInviteForm({
+                    ...inviteForm,
+                    expiresInDays: Number(e.target.value),
+                  })
+                }
+                className='mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100'
+              />
+            </label>
+            <label className='text-xs text-gray-600 dark:text-gray-400'>
+              备注
+              <input
+                type='text'
+                maxLength={60}
+                placeholder='如：一群用户'
+                value={inviteForm.note}
+                onChange={(e) =>
+                  setInviteForm({ ...inviteForm, note: e.target.value })
+                }
+                className='mt-1 w-full rounded-lg border border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100'
+              />
+            </label>
+          </div>
+          <button
+            onClick={handleCreateInviteCodes}
+            disabled={inviteCreating}
+            className='mt-3 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors'
+          >
+            {inviteCreating ? '生成中...' : '生成邀请码'}
+          </button>
+
+          {/* 刚生成的结果 */}
+          {newInviteCodes.length > 0 && (
+            <div className='mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'>
+              <div className='flex items-center justify-between mb-2'>
+                <span className='text-sm text-green-800 dark:text-green-300'>
+                  刚生成的邀请码（点按钮复制）
+                </span>
+                <button
+                  onClick={() => copyInviteCodes(newInviteCodes)}
+                  className='px-2 py-1 text-xs bg-green-600 hover:bg-green-700 text-white rounded'
+                >
+                  复制全部
+                </button>
+              </div>
+              <div className='flex flex-wrap gap-2'>
+                {newInviteCodes.map((code) => (
+                  <code
+                    key={code}
+                    className='px-2 py-1 rounded bg-white dark:bg-zinc-900 font-mono text-sm text-gray-900 dark:text-gray-100 border border-green-200 dark:border-green-800'
+                  >
+                    {code}
+                  </code>
+                ))}
+              </div>
+              <button
+                onClick={() => setNewInviteCodes([])}
+                className='mt-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              >
+                收起
+              </button>
+            </div>
+          )}
+
+          {/* 邀请码列表 */}
+          <div className='mt-4'>
+            <div className='flex items-center justify-between mb-2'>
+              <span className='text-sm text-gray-700 dark:text-gray-300'>
+                邀请码列表（{inviteCodes.length}）
+              </span>
+              {inviteCodes.length > 0 && (
+                <button
+                  onClick={() =>
+                    copyInviteCodes(
+                      inviteCodes
+                        .filter(
+                          (item) =>
+                            !item.disabled &&
+                            (!item.expiresAt || item.expiresAt > Date.now()) &&
+                            (item.usedCount || 0) < (item.maxUses || 1)
+                        )
+                        .map((item) => item.code)
+                    )
+                  }
+                  className='px-2 py-1 text-xs border border-gray-300 dark:border-zinc-600 rounded text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-700'
+                >
+                  复制可用码
+                </button>
+              )}
+            </div>
+            {inviteCodes.length === 0 ? (
+              <p className='text-xs text-gray-500 dark:text-gray-400'>
+                还没有邀请码，先用上面的表单生成几个。
+              </p>
+            ) : (
+              <div className='overflow-x-auto'>
+                <table className='min-w-full text-sm'>
+                  <thead>
+                    <tr className='text-xs text-gray-500 dark:text-gray-400'>
+                      <th className='text-left py-1 pr-3'>邀请码</th>
+                      <th className='text-left py-1 pr-3'>备注</th>
+                      <th className='text-left py-1 pr-3'>已用</th>
+                      <th className='text-left py-1 pr-3'>有效期</th>
+                      <th className='text-left py-1 pr-3'>状态</th>
+                      <th className='text-left py-1'>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inviteCodes.map((item) => {
+                      const used = item.usedCount || 0;
+                      const max = item.maxUses || 1;
+                      const expired = Boolean(
+                        item.expiresAt && item.expiresAt <= Date.now()
+                      );
+                      const exhausted = used >= max;
+                      const stateText = item.disabled
+                        ? '已停用'
+                        : expired
+                          ? '已过期'
+                          : exhausted
+                            ? '已用完'
+                            : '可用';
+                      const stateClass = item.disabled || expired || exhausted
+                        ? 'text-gray-400 dark:text-gray-500'
+                        : 'text-green-600 dark:text-green-400';
+                      return (
+                        <tr key={item.code} className='border-t border-gray-200 dark:border-zinc-700'>
+                          <td className='py-1.5 pr-3 font-mono text-gray-900 dark:text-gray-100'>
+                            {item.code}
+                          </td>
+                          <td className='py-1.5 pr-3 text-gray-600 dark:text-gray-400'>
+                            {item.note || '-'}
+                          </td>
+                          <td className='py-1.5 pr-3 text-gray-600 dark:text-gray-400'>
+                            {used}/{max}
+                          </td>
+                          <td className='py-1.5 pr-3 text-gray-600 dark:text-gray-400'>
+                            {item.expiresAt
+                              ? new Date(item.expiresAt).toLocaleDateString()
+                              : '永久'}
+                          </td>
+                          <td className={`py-1.5 pr-3 ${stateClass}`}>{stateText}</td>
+                          <td className='py-1.5'>
+                            <div className='flex gap-2'>
+                              <button
+                                onClick={() => copyInviteCodes([item.code])}
+                                className='text-xs text-blue-600 hover:underline'
+                              >
+                                复制
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleInviteCodeAction(
+                                    'toggleInviteCode',
+                                    item.code,
+                                    !item.disabled
+                                  )
+                                }
+                                className='text-xs text-yellow-600 hover:underline'
+                              >
+                                {item.disabled ? '启用' : '停用'}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleInviteCodeAction('deleteInviteCode', item.code)
+                                }
+                                className='text-xs text-red-600 hover:underline'
+                              >
+                                删除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -5,9 +5,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { getStorage } from '@/lib/db';
+import { checkInviteCode, createInviteCodes, findInviteCode } from '@/lib/invite';
 import { IStorage } from '@/lib/types';
 
 export const runtime = 'edge';
+
+// 不需要目标用户名的操作
+const ACTIONS_WITHOUT_TARGET = [
+  'setAllowRegister',
+  'setInviteCodeRequired',
+  'createInviteCodes',
+  'deleteInviteCode',
+  'toggleInviteCode',
+] as const;
 
 // 支持的操作类型
 const ACTIONS = [
@@ -17,6 +27,10 @@ const ACTIONS = [
   'setAdmin',
   'cancelAdmin',
   'setAllowRegister',
+  'setInviteCodeRequired',
+  'createInviteCodes',
+  'deleteInviteCode',
+  'toggleInviteCode',
   'changePassword',
   'deleteUser',
 ] as const;
@@ -45,11 +59,24 @@ export async function POST(request: NextRequest) {
       targetUsername, // 目标用户名
       targetPassword, // 目标用户密码（仅在添加用户时需要）
       allowRegister,
+      inviteCodeRequired,
+      inviteOptions,
+      inviteCode,
+      inviteDisabled,
       action,
     } = body as {
       targetUsername?: string;
       targetPassword?: string;
       allowRegister?: boolean;
+      inviteCodeRequired?: boolean;
+      inviteOptions?: {
+        count?: number;
+        maxUses?: number;
+        expiresInDays?: number;
+        note?: string;
+      };
+      inviteCode?: string;
+      inviteDisabled?: boolean;
       action?: (typeof ACTIONS)[number];
     };
 
@@ -57,12 +84,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
 
-    if (action !== 'setAllowRegister' && !targetUsername) {
+    const needsTarget = !(ACTIONS_WITHOUT_TARGET as readonly string[]).includes(action);
+
+    if (needsTarget && !targetUsername) {
       return NextResponse.json({ error: '缺少目标用户名' }, { status: 400 });
     }
 
     if (
-      action !== 'setAllowRegister' &&
+      needsTarget &&
       action !== 'changePassword' &&
       action !== 'deleteUser' &&
       username === targetUsername
@@ -107,12 +136,59 @@ export async function POST(request: NextRequest) {
     // 权限校验逻辑
     const isTargetAdmin = targetEntry?.role === 'admin';
 
+    // 邀请码相关操作可携带额外返回内容（如新生成的码）
+    let extraPayload: Record<string, unknown> | null = null;
+
     if (action === 'setAllowRegister') {
       if (typeof allowRegister !== 'boolean') {
         return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
       }
       adminConfig.UserConfig.AllowRegister = allowRegister;
+      // 关闭注册时顺手关掉邀请码要求，避免下次开启时状态不一致
+      if (!allowRegister) {
+        adminConfig.UserConfig.InviteCodeRequired = false;
+      }
       // 保存后直接返回成功（走后面的统一保存逻辑）
+    } else if (action === 'setInviteCodeRequired') {
+      if (typeof inviteCodeRequired !== 'boolean') {
+        return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
+      }
+      if (inviteCodeRequired && !adminConfig.UserConfig.AllowRegister) {
+        return NextResponse.json(
+          { error: '请先开启「允许新用户注册」' },
+          { status: 400 }
+        );
+      }
+      adminConfig.UserConfig.InviteCodeRequired = inviteCodeRequired;
+    } else if (action === 'createInviteCodes') {
+      const codes = createInviteCodes(
+        inviteOptions || {},
+        adminConfig.UserConfig.InviteCodes || []
+      );
+      if (!codes.length) {
+        return NextResponse.json({ error: '生成失败，请重试' }, { status: 500 });
+      }
+      adminConfig.UserConfig.InviteCodes = [
+        ...codes,
+        ...(adminConfig.UserConfig.InviteCodes || []),
+      ];
+      extraPayload = { codes: codes.map((item) => item.code) };
+    } else if (action === 'deleteInviteCode') {
+      const entry = findInviteCode(adminConfig.UserConfig.InviteCodes, inviteCode || '');
+      if (!entry) {
+        return NextResponse.json({ error: '邀请码不存在' }, { status: 404 });
+      }
+      adminConfig.UserConfig.InviteCodes = (
+        adminConfig.UserConfig.InviteCodes || []
+      ).filter((item) => item !== entry);
+    } else if (action === 'toggleInviteCode') {
+      const entry = findInviteCode(adminConfig.UserConfig.InviteCodes, inviteCode || '');
+      if (!entry) {
+        return NextResponse.json({ error: '邀请码不存在' }, { status: 404 });
+      }
+      entry.disabled = inviteDisabled === undefined ? !entry.disabled : inviteDisabled;
+      const state = checkInviteCode(entry);
+      extraPayload = { disabled: Boolean(entry.disabled), state: state.state };
     } else {
       switch (action) {
         case 'add': {
@@ -317,7 +393,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: true },
+      { ok: true, ...(extraPayload || {}) },
       {
         headers: {
           'Cache-Control': 'no-store', // 管理员配置不缓存

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { checkInviteCode, findInviteCode } from '@/lib/invite';
 
 export const runtime = 'edge';
 
@@ -73,13 +74,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '当前未开放注册' }, { status: 400 });
     }
 
-    const { username, password } = await req.json();
+    const { username, password, inviteCode } = await req.json();
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
     }
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
+    }
+
+    // 邀请码校验（仅当管理员开启了“需要邀请码”时生效）
+    const inviteRequired = config.UserConfig.InviteCodeRequired === true;
+    const inviteEntry = inviteRequired
+      ? findInviteCode(config.UserConfig.InviteCodes, inviteCode)
+      : undefined;
+    if (inviteRequired) {
+      if (!String(inviteCode || '').trim()) {
+        return NextResponse.json({ error: '请填写邀请码' }, { status: 400 });
+      }
+      const inviteCheck = checkInviteCode(inviteEntry);
+      if (!inviteCheck.ok) {
+        return NextResponse.json(
+          { error: inviteCheck.reason || '邀请码无效' },
+          { status: 400 }
+        );
+      }
     }
 
     // 检查是否和管理员重复
@@ -101,6 +120,16 @@ export async function POST(req: NextRequest) {
         username,
         role: 'user',
       });
+
+      // 登记邀请码使用记录（引用同一对象，随配置一起保存）
+      if (inviteRequired && inviteEntry) {
+        inviteEntry.usedCount = (inviteEntry.usedCount || 0) + 1;
+        inviteEntry.usedBy = [
+          ...(inviteEntry.usedBy || []),
+          { username, at: Date.now() },
+        ].slice(-50);
+      }
+
       await db.saveAdminConfig(config);
 
       // 注册成功，设置认证cookie

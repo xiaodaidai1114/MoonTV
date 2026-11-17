@@ -22,6 +22,18 @@ export interface AdminConfig {
   };
   UserConfig: {
     AllowRegister: boolean;
+    // 注册是否需要邀请码（邀请码由管理员在用户管理里生成）
+    InviteCodeRequired?: boolean;
+    InviteCodes?: {
+      code: string;
+      note?: string;
+      maxUses: number;
+      usedCount: number;
+      createdAt: number;
+      expiresAt?: number;
+      disabled?: boolean;
+      usedBy?: { username: string; at: number }[];
+    }[];
     Users: {
       username: string;
       role: 'user' | 'admin' | 'owner';
