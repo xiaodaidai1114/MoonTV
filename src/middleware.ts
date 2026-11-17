@@ -127,6 +127,8 @@ function shouldSkipAuth(pathname: string): boolean {
     '/screenshot.png',
     '/api/m3u8',
     '/api/image-proxy',
+    // HGhub 插件适配层：由源适配与签名令牌保护，不走登录态
+    '/api/hghub',
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));
