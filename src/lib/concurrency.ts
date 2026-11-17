@@ -1,5 +1,5 @@
 /** 搜索结果源级并发的默认值（用户设置缺失时使用）。 */
-export const DEFAULT_SEARCH_CONCURRENCY = 6;
+export const DEFAULT_SEARCH_CONCURRENCY = 10;
 
 /** 搜索结果源级并发的上限，避免单个请求开出过多上游连接。 */
 export const MAX_SEARCH_CONCURRENCY = 20;
