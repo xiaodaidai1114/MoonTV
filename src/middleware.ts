@@ -125,6 +125,9 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
+    // 客户端安装包 / 公开下载文件
+    '/download/',
+    '/moontv.apk',
     '/api/m3u8',
     '/api/image-proxy',
     // HGhub 插件适配层：由源适配与签名令牌保护，不走登录态
