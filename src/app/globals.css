@@ -380,6 +380,16 @@ div[data-media-provider] video {
 .art-video-player.art-fullscreen .moontv-player-modal > div {
   position: absolute;
 }
+/* 竖屏视频的网页全屏：铺满当前竖屏，不跟横屏影片一样转过去 */
+.art-video-player.art-fullscreen-web.moontv-portrait-fs {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+}
+.art-video-player.art-fullscreen-web.moontv-portrait-fs video {
+  object-fit: contain !important;
+  background: #000;
+}
 @media (max-width: 768px) {
   .art-control-pip,
   .art-control-fullscreenWeb,

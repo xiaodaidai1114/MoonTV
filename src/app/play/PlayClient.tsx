@@ -163,6 +163,14 @@ export default function PlayClient() {
                               : videoTitle
                             : ''
                         }
+                        onBack={() => {
+                          const exit = (
+                            window as Window & {
+                              __moonExitFullscreen?: () => boolean;
+                            }
+                          ).__moonExitFullscreen;
+                          return exit?.() === true;
+                        }}
                       />
                       {/* 进度预览：桌面跟随鼠标，移动端固定居中 */}
                       {preview?.visible && (

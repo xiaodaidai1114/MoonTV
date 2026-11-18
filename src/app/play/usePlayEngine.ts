@@ -17,6 +17,7 @@ import {
   extractSeasonFromTitle,
   getDanmakuBySelectedAnime,
   matchAnime,
+  searchEpisodes,
 } from '@/lib/danmaku.client';
 import {
   deleteSkipConfig,
@@ -26,6 +27,7 @@ import {
   savePlayRecord,
   saveSkipConfig,
 } from '@/lib/db.client';
+import { sortSourcesByPriority, isPreferredSource } from '@/lib/source-priority';
 import {
   AUTO_LEVEL,
   buildQualityOptions,
@@ -409,7 +411,7 @@ export function usePlayEngine() {
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(0);
 
   // 自动匹配弹幕设置
-  const [autoDanmakuEnabled, setAutoDanmakuEnabled] = useState(false);
+  const [autoDanmakuEnabled, setAutoDanmakuEnabled] = useState(true);
   const [preferredDanmakuPlatform, setPreferredDanmakuPlatform] =
     useState('bilibili1');
 
@@ -511,6 +513,12 @@ export function usePlayEngine() {
           .then(() => {
             if (lastDanmakuUrlRef.current === url) {
               if (isManualSelect) setIsDanmakuLoading(false);
+              try {
+                inst.config({ visible: true });
+                inst.visible = true;
+              } catch {
+                // ignore
+              }
               scheduleDanmakuVisibleRestore();
             }
           })
@@ -1355,29 +1363,42 @@ export function usePlayEngine() {
       let hasInitialized = false; // 标记是否已经初始化过播放数据
 
       await fetchSourcesData(videoTitle || searchTitle, (newResults) => {
-        allResults = [...allResults, ...newResults];
+        allResults = sortSourcesByPriority([...allResults, ...newResults]);
 
         // 如果还没确定 detailData，就尝试找目标源
         if (!detailData && currentSource && currentId) {
           const match = newResults.find(
             (item) => item.source === currentSource && item.id === currentId
           );
-          if (match) {
+          // 点进来的源本身就是优质源时立刻开播；慢源先等优质源到齐
+          if (match && isPreferredSource(match.source)) {
             detailData = match;
-            // 如果未启用优选，立即初始化播放数据
             if (!enablePreferBestSourceFromStorage) {
               initDetail(detailData);
               hasInitialized = true;
             }
-            // 如果启用优选，则等待所有源收集完再决定是否优选
+          }
+        }
+        if (!hasInitialized && !enablePreferBestSourceFromStorage) {
+          const preferred = allResults.find(
+            (item) => isPreferredSource(item.source) && item.episodes?.length
+          );
+          if (preferred) {
+            detailData = preferred;
+            initDetail(preferred);
+            hasInitialized = true;
           }
         }
       });
 
-      // 流式搜索结束：如果目标源没找到，就 fallback
+      // 流式搜索结束：优先优质源，没有再退回其余源
       if (!detailData && allResults.length > 0) {
-        detailData = allResults[0];
+        detailData =
+          allResults.find(
+            (item) => isPreferredSource(item.source) && item.episodes?.length
+          ) || allResults[0];
       }
+      setAvailableSources(allResults);
 
       // 完全没结果
       if (!detailData) {
@@ -1458,19 +1479,34 @@ export function usePlayEngine() {
         attempt++;
         try {
           const title = videoTitleRef.current;
+          if (!title) {
+            throw new Error('还没有片名，无法匹配弹幕');
+          }
           const currentEpisodeTitle =
             detail?.episodes_titles?.[currentEpisodeIndex];
-          if (!currentEpisodeTitle) {
-            throw new Error('无法获取当前集数标题（episodes_titles 无效）');
-          }
-          let epNum = extractEpisodeNumber(currentEpisodeTitle);
+          let epNum = currentEpisodeTitle
+            ? extractEpisodeNumber(currentEpisodeTitle)
+            : null;
           if (!epNum) {
             epNum = currentEpisodeIndex + 1;
           }
           const platform = preferredDanmakuPlatform;
           const season = extractSeasonFromTitle(title);
           const fileName = `${title} S${season}E${epNum} @${platform}`;
-          const matches = await matchAnime(fileName, abortController.signal);
+          let matches: any[] = [];
+          try {
+            matches = await Promise.race([
+              matchAnime(fileName, abortController.signal),
+              new Promise<any[]>((_, reject) =>
+                setTimeout(() => reject(new Error('弹幕匹配超时')), 8000)
+              ),
+            ]);
+          } catch (matchErr) {
+            if (matchErr instanceof DOMException && matchErr.name === 'AbortError') {
+              throw matchErr;
+            }
+            matches = [];
+          }
           console.log(`自动弹幕匹配尝试第${attempt}次:`, matches);
           if (abortController.signal.aborted) return;
           if (matches.length > 0) {
@@ -1492,7 +1528,31 @@ export function usePlayEngine() {
             setSelectedDanmakuSource(platform);
             success = true;
             break;
-          } else {
+          }
+          // 精确匹配失败时，按片名搜剧集，再对上当前集
+          try {
+            const options = await searchEpisodes(title);
+            const picked =
+              options.find((item) => item.episodes?.length) || options[0];
+            const episode =
+              picked?.episodes?.find(
+                (item) => extractEpisodeNumber(item.episodeTitle) === epNum
+              ) ||
+              picked?.episodes?.[epNum - 1] ||
+              picked?.episodes?.[0];
+            if (picked && episode) {
+              setSelectedDanmakuAnime({
+                ...picked,
+                episodes: [episode],
+              });
+              setSelectedDanmakuSource(platform);
+              success = true;
+              break;
+            }
+          } catch (searchErr) {
+            console.error('弹幕剧集搜索失败:', searchErr);
+          }
+          if (matches.length === 0) {
             if (retryCount === -1 || attempt <= retryCount) {
               await new Promise((res) => setTimeout(res, 1500)); // 间隔1.5秒重试
             }
@@ -3172,10 +3232,21 @@ export function usePlayEngine() {
           | HTMLVideoElement
           | null
           | undefined;
-        if (!video?.videoWidth || !video.videoHeight) return true;
+        // 尺寸还没出来时不要当成横屏，否则竖屏视频一全屏就被转过去
+        if (!video?.videoWidth || !video.videoHeight) return false;
         return video.videoWidth >= video.videoHeight;
       };
       const syncFullscreenOrientation = (entered: boolean) => {
+        const playerEl = artPlayerRef.current?.template?.$player as
+          | HTMLElement
+          | undefined;
+        const portrait = entered && !videoIsWide();
+        playerEl?.classList.toggle('moontv-portrait-fs', portrait);
+        try {
+          (window as any).MoonTVShell?.setLandscape?.(entered && videoIsWide());
+        } catch {
+          // 浏览器里没有外壳
+        }
         if (!entered) {
           releaseOrientation();
           return;
@@ -3183,10 +3254,57 @@ export function usePlayEngine() {
         if (videoIsWide()) void requestLandscape();
         else releaseOrientation();
       };
+      (window as any).__moonExitFullscreen = () => {
+        const art = artPlayerRef.current;
+        const inWeb =
+          !!art?.fullscreenWeb ||
+          !!document.querySelector('.art-fullscreen-web');
+        const inNative =
+          !!art?.fullscreen || !!document.fullscreenElement;
+        if (!inWeb && !inNative) return false;
+        try {
+          if (art) {
+            art.fullscreenWeb = false;
+            art.fullscreen = false;
+          }
+        } catch {
+          // ignore
+        }
+        try {
+          document.exitFullscreen?.();
+        } catch {
+          // ignore
+        }
+        releaseOrientation();
+        return true;
+      };
 
-      // 监听播放器事件
-      artPlayerRef.current.on('fullscreen', syncFullscreenOrientation);
+      // 竖屏视频不要进系统横屏全屏，改用铺满屏幕的网页全屏
+      artPlayerRef.current.on('fullscreen', (entered: boolean) => {
+        if (entered && !videoIsWide()) {
+          try {
+            artPlayerRef.current.fullscreen = false;
+            artPlayerRef.current.fullscreenWeb = true;
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        syncFullscreenOrientation(entered);
+      });
       artPlayerRef.current.on('fullscreenWeb', syncFullscreenOrientation);
+      artPlayerRef.current.on('video:loadedmetadata', () => {
+        const art = artPlayerRef.current;
+        if (!art) return;
+        if (art.fullscreen && !videoIsWide()) {
+          art.fullscreen = false;
+          art.fullscreenWeb = true;
+          return;
+        }
+        if (art.fullscreen || art.fullscreenWeb) {
+          syncFullscreenOrientation(true);
+        }
+      });
 
       artPlayerRef.current.on('ready', () => {
         setError(null);

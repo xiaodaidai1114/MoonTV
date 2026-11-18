@@ -252,7 +252,7 @@ function AiChatClient() {
 
   return (
     <PageLayout>
-      <div className='mx-auto flex min-h-[calc(100vh-8rem)] w-full max-w-4xl flex-col px-3 pb-28 pt-6 sm:px-6 sm:pb-8'>
+      <div className='mx-auto flex min-h-[calc(100vh-8rem)] w-full max-w-4xl flex-col px-3 pb-40 pt-6 sm:px-6 md:pb-8'>
         <div className='mb-5 flex items-center gap-3'>
           <div className='flex h-10 w-10 items-center justify-center rounded-2xl bg-green-500/15 text-green-600 dark:text-green-400'>
             <Sparkles className='h-5 w-5' />
@@ -326,7 +326,7 @@ function AiChatClient() {
 
         <form
           onSubmit={handleSubmit}
-          className='sticky bottom-20 mt-5 rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 md:static md:bottom-auto'
+          className='fixed inset-x-0 z-[550] mx-auto w-full max-w-4xl border-t border-gray-200 bg-white/95 p-2 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur bottom-[calc(3.5rem+env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-900/95 md:static md:bottom-auto md:mt-5 md:rounded-2xl md:border md:shadow-lg'
         >
           <div className='flex items-end gap-2'>
             <textarea

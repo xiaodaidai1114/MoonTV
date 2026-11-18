@@ -19,6 +19,8 @@ interface BackButtonProps {
   className?: string;
   /** `overlay` 用于深色播放器画面上的浅色按钮 */
   variant?: 'default' | 'overlay';
+  /** 返回 true 表示已经处理（例如只退出全屏），不再离开当前页 */
+  onBack?: () => boolean | void;
 }
 
 /**
@@ -32,10 +34,12 @@ export function BackButton({
   label = '返回',
   className = '',
   variant = 'default',
+  onBack,
 }: BackButtonProps) {
   const router = useRouter();
 
   const handleBack = () => {
+    if (onBack?.()) return;
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
       return;

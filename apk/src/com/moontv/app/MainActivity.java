@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
           + "  return false;"
           + "}"
           + "function videoWide(){var v=document.querySelector('video');"
-          + "  if(!v||!v.videoWidth||!v.videoHeight){return true;}"
+          + "  if(!v||!v.videoWidth||!v.videoHeight){return false;}"
           + "  return v.videoWidth>=v.videoHeight;}"
           + "function check(){var on=fullscreenOn();var wide=on&&videoWide();var key=on?('on'+wide):'off';"
           + "  if(key!==last){last=key;"
@@ -365,11 +365,21 @@ public class MainActivity extends Activity {
                 chromeClient.onHideCustomView();
                 return true;
             }
-            if (webView.canGoBack()) {
-                webView.goBack();
-                return true;
-            }
-            showExitMenu();
+            webView.evaluateJavascript(
+                    "(function(){try{if(window.__moonExitFullscreen&&window.__moonExitFullscreen()){return 'fs';}}catch(e){}return '';})()",
+                    new android.webkit.ValueCallback<String>() {
+                        @Override
+                        public void onReceiveValue(String value) {
+                            if (value != null && value.contains("fs")) return;
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (webView.canGoBack()) webView.goBack();
+                                    else finish();
+                                }
+                            });
+                        }
+                    });
             return true;
         }
         return super.onKeyDown(keyCode, event);

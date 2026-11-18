@@ -32,7 +32,6 @@ import { DoubanItem } from '@/lib/types';
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import ContinueWatching from '@/components/ContinueWatching';
-import HomeDiscovery from '@/components/HomeDiscovery';
 import { useNavigationLoading } from '@/components/NavigationLoadingProvider';
 import PageLayout from '@/components/PageLayout';
 import ScrollableRow from '@/components/ScrollableRow';
@@ -41,6 +40,9 @@ import VideoCard from '@/components/VideoCard';
 
 function HomeClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'history' | 'following' | 'favorites'>('home');
+  const [homeCategory, setHomeCategory] = useState<
+    'movie' | 'tv' | 'anime' | 'show'
+  >('movie');
   const [hotMovies, setHotMovies] = useState<DoubanItem[]>([]);
   const [hotMoviesLoading, setHotMoviesLoading] = useState(true);
   const [hotTvShows, setHotTvShows] = useState<DoubanItem[]>([]);
@@ -1003,16 +1005,53 @@ function HomeClient() {
           ) : (
             // 首页视图
             <>
-              {/* 搜索主视觉 + 大家都在看 / 新番推荐 / 短剧热播 */}
-              {isClient && !simpleMode && <HomeDiscovery />}
-
               {/* 继续观看 - 组件内部已处理简洁模式 */}
               <ContinueWatching />
+
+              {isClient && !simpleMode && (
+                <div className='mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide'>
+                  {(
+                    [
+                      ['movie', '电影'],
+                      ['tv', '剧集'],
+                      ['anime', '动漫'],
+                      ['show', '综艺'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type='button'
+                      onClick={() => setHomeCategory(key)}
+                      className={`flex-shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                        homeCategory === key
+                          ? 'bg-green-600 text-white'
+                          : 'bg-black/5 text-gray-600 hover:bg-black/10 dark:bg-white/10 dark:text-gray-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <Link
+                    href='/short-drama'
+                    onClick={startLoading}
+                    className='flex-shrink-0 rounded-full bg-black/5 px-4 py-1.5 text-sm font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300'
+                  >
+                    短剧
+                  </Link>
+                  <Link
+                    href='/douban?type=doc'
+                    onClick={startLoading}
+                    className='flex-shrink-0 rounded-full bg-black/5 px-4 py-1.5 text-sm font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300'
+                  >
+                    纪录片
+                  </Link>
+                </div>
+              )}
 
               {/* 简洁模式下只显示收藏夹，但在服务器端渲染时先不渲染 */}
               {isClient && !simpleMode && (
                 <>
-                  {/* 热门电影 */}
+                  {homeCategory === 'movie' && (
                   <section className='mb-8'>
                     <div className='mb-4 flex items-center justify-between'>
                       <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
@@ -1060,8 +1099,9 @@ function HomeClient() {
                           ))}
                     </ScrollableRow>
                   </section>
+                  )}
 
-                  {/* 热门剧集 */}
+                  {homeCategory === 'tv' && (
                   <section className='mb-8'>
                     <div className='mb-4 flex items-center justify-between'>
                       <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
@@ -1108,8 +1148,9 @@ function HomeClient() {
                           ))}
                     </ScrollableRow>
                   </section>
+                  )}
 
-                  {/* 每日新番放送 */}
+                  {homeCategory === 'anime' && (
                   <section className='mb-8'>
                     <div className='mb-4 flex items-center justify-between'>
                       <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
@@ -1190,8 +1231,9 @@ function HomeClient() {
                           })()}
                     </ScrollableRow>
                   </section>
+                  )}
 
-                  {/* 热门综艺 */}
+                  {homeCategory === 'show' && (
                   <section className='mb-8'>
                     <div className='mb-4 flex items-center justify-between'>
                       <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
@@ -1238,6 +1280,7 @@ function HomeClient() {
                           ))}
                     </ScrollableRow>
                   </section>
+                  )}
                 </>
               )}
             </>
