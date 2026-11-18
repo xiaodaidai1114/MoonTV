@@ -119,9 +119,15 @@ function extractTitle(text: string): string | undefined {
   const quoted = text.match(/[《「“"]([^》」”"]{1,30})[》」”"]/);
   if (quoted) return quoted[1].trim();
 
-  // 「类似 XXX」中的作品名
-  const similar = text.match(/(?:类似|像|差不多和)\s*([^\s，。！？的]{2,20})/);
-  if (similar) return similar[1].trim();
+  // 「类似 XXX」中的作品名：允许片名里带「的」（如 漫长的季节），
+  // 只按空格和句读截断，并去掉结尾的类型后缀。
+  const similar = text.match(/(?:类似|像|差不多和)\s*([^\s，。！？]{2,20})/);
+  if (similar) {
+    return similar[1]
+      .trim()
+      .replace(/(?:的电影|的电视剧|的剧|的片子|的综艺|的动漫)$/, '')
+      .trim();
+  }
 
   // 整句就是一个片名（不含题材/地区/类型词）
   const compact = text.replace(/[\s，。！？?、]/g, '');
