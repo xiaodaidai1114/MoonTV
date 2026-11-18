@@ -504,47 +504,20 @@ export async function getDoubanCollection(
   pageStart = 0,
   pageLimit = 25
 ): Promise<DoubanResult> {
-  const { proxyType, proxyUrl } = getDoubanProxyConfig();
+  // 统一走服务端代理：榜单数据此前由浏览器直连豆瓣（direct 被 CORS 拦截，
+  // CDN 在部分家宽网络不可达），服务器侧请求在两台部署机上均稳定可达
+  const response = await fetch(
+    `/api/douban/collection?id=${encodeURIComponent(collectionId)}&start=${pageStart}&limit=${pageLimit}`
+  );
 
-  const useTencentCDN = proxyType === 'cmliussss-cdn-tencent';
-  const useAliCDN = proxyType === 'cmliussss-cdn-ali';
-  const baseUrl = useTencentCDN
-    ? `https://m.douban.cmliussss.net/rexxar/api/v2/subject_collection/${collectionId}/items`
-    : useAliCDN
-    ? `https://m.douban.cmliussss.com/rexxar/api/v2/subject_collection/${collectionId}/items`
-    : `https://m.douban.com/rexxar/api/v2/subject_collection/${collectionId}/items`;
-
-  const proxy =
-    proxyType === 'cors-proxy-zwei'
-      ? 'https://ciao-cors.is-an.org/'
-      : proxyType === 'custom'
-      ? proxyUrl
-      : '';
-
-  try {
-    const response = await fetchWithTimeout(
-      `${baseUrl}?start=${pageStart}&count=${pageLimit}`,
-      useTencentCDN || useAliCDN ? '' : proxy
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      (detail as any)?.error || `HTTP error! Status: ${response.status}`
     );
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const data = (await response.json()) as DoubanCollectionResponse;
-    const list: DoubanItem[] = (data.subject_collection_items || []).map(
-      (item) => ({
-        id: item.id,
-        title: item.title,
-        poster: item.cover_url || item.pic?.large || item.pic?.normal || '',
-        rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
-        year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
-      })
-    );
-
-    return { code: 200, message: '获取成功', list };
-  } catch (error) {
-    throw new Error(`获取豆瓣榜单失败: ${(error as Error).message}`);
   }
+
+  return response.json();
 }
 
 /**
