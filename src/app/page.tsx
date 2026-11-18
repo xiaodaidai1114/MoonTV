@@ -1005,9 +1005,6 @@ function HomeClient() {
           ) : (
             // 首页视图
             <>
-              {/* 继续观看 - 组件内部已处理简洁模式 */}
-              <ContinueWatching />
-
               {isClient && !simpleMode && (
                 <div className='mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide'>
                   {(
@@ -1047,6 +1044,8 @@ function HomeClient() {
                   </Link>
                 </div>
               )}
+
+              <ContinueWatching />
 
               {/* 简洁模式下只显示收藏夹，但在服务器端渲染时先不渲染 */}
               {isClient && !simpleMode && (

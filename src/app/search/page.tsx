@@ -21,6 +21,7 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { matchesSearchTitle } from '@/lib/search-title';
+import { sortSourcesByPriority } from '@/lib/source-priority';
 import { SearchResult } from '@/lib/types';
 import { getRequestTimeout } from '@/lib/utils';
 
@@ -332,7 +333,7 @@ function SearchPageClient() {
       if (!streamEnabled) {
         const json = await response.json();
         if (controller.signal.aborted) return;
-        setSearchResults(json.results || []);
+        setSearchResults(sortSourcesByPriority(json.results || []));
         setFailedSources(json.failedSources || []);
         setIsLoading(false);
       } else {
@@ -358,7 +359,9 @@ function SearchPageClient() {
               try {
                 const json = JSON.parse(line);
                 if (json.pageResults?.length) {
-                  setSearchResults((prev) => [...prev, ...json.pageResults]);
+                  setSearchResults((prev) =>
+                    sortSourcesByPriority([...prev, ...json.pageResults])
+                  );
                   if (firstResult) {
                     setIsLoading(false);
                     firstResult = false;
@@ -376,7 +379,9 @@ function SearchPageClient() {
           try {
             const json = JSON.parse(buffer);
             if (json.pageResults)
-              setSearchResults((prev) => [...prev, ...json.pageResults]);
+              setSearchResults((prev) =>
+                sortSourcesByPriority([...prev, ...json.pageResults])
+              );
             if (json.failedSources) setFailedSources(json.failedSources);
           } catch {
             //

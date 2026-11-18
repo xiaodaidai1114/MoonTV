@@ -142,7 +142,7 @@ export default function PlayClient() {
             {/* 播放器 */}
             <div className='order-1 bg-black md:col-span-3 md:row-start-1'>
               <div
-                className={`relative isolate w-full h-[56vw] max-h-[320px] min-h-[210px] md:h-[420px] lg:h-[520px] xl:h-[620px] ${
+                className={`relative isolate w-full aspect-video h-auto max-h-[42vh] md:aspect-auto md:h-[420px] md:max-h-none lg:h-[520px] xl:h-[620px] ${
                   isPlayerModalOpen ? 'z-[1200]' : ''
                 }`}
               >
@@ -269,7 +269,7 @@ export default function PlayClient() {
             </div>
 
             {/* 选集和换源：手机横向滑，桌面在右侧 */}
-            <div className='order-3 h-[200px] border-t border-black/5 md:col-start-4 md:row-start-1 md:h-[420px] md:overflow-hidden md:border-l md:border-t-0 lg:h-[520px] xl:h-[620px] dark:border-white/10'>
+            <div className='order-3 h-[148px] border-t border-black/5 md:col-start-4 md:row-start-1 md:h-[420px] md:overflow-hidden md:border-l md:border-t-0 lg:h-[520px] xl:h-[620px] dark:border-white/10'>
               <EpisodeSelector
                 totalEpisodes={totalEpisodes}
                 episodes_titles={detail?.episodes_titles || []}

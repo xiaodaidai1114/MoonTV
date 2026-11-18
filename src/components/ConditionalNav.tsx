@@ -30,8 +30,8 @@ const ConditionalNav = () => {
 
   return (
     <>
-      {/* 移动端头部 - 固定在根布局，避免页面切换时重新渲染 */}
-      <MobileHeader showBackButton={false} />
+      {/* 播放页自带返回，不再叠一层站点头，把高度留给播放器 */}
+      {!pathname.startsWith('/play') && <MobileHeader showBackButton={false} />}
 
       {/* 桌面端顶部导航栏 - 固定在根布局，避免页面切换时重新渲染 */}
       <TopNav />
