@@ -136,13 +136,13 @@ export default function PlayClient() {
   return (
     <PageLayout activePath='/play'>
       <div className='mx-auto w-full px-3 pb-6 md:max-w-[95%] md:px-0 md:pb-10'>
-        {/* 播放器 + 选集：桌面端合并为一张圆角卡片，移动端保持全宽沉浸 */}
+        {/* 播放器 + 选集 + 简介。手机上顺序接近 B 站：播放器、标题操作、选集、评论 */}
         <div className='-mx-3 overflow-hidden md:mx-0 md:mt-4 md:rounded-2xl md:bg-white md:shadow-sm md:ring-1 md:ring-black/5 lg:mt-6 dark:md:bg-white/[0.03] dark:md:ring-white/10'>
-          <div className='grid grid-cols-1 md:grid-cols-4 lg:h-[500px] xl:h-[650px] 2xl:h-[750px]'>
+          <div className='flex flex-col md:grid md:grid-cols-4'>
             {/* 播放器 */}
-            <div className='h-full md:col-span-3'>
+            <div className='order-1 bg-black md:col-span-3 md:row-start-1'>
               <div
-                className={`relative isolate w-full h-[300px] lg:h-full ${
+                className={`relative isolate w-full h-[56vw] max-h-[320px] min-h-[210px] md:h-[420px] lg:h-[520px] xl:h-[620px] ${
                   isPlayerModalOpen ? 'z-[1200]' : ''
                 }`}
               >
@@ -240,8 +240,28 @@ export default function PlayClient() {
               </div>
             </div>
 
-            {/* 选集和换源 */}
-            <div className='h-[300px] border-t border-black/5 md:col-span-1 md:overflow-hidden md:border-l md:border-t-0 lg:h-full dark:border-white/10'>
+            {/* 标题、收藏/分享、简介：紧贴播放器，和 B 站一样先看信息再选集 */}
+            <div className='order-2 border-t border-black/5 px-3 py-3 md:col-span-3 md:row-start-2 md:border-t md:px-5 md:py-4 dark:border-white/10'>
+              <VideoDetailPanel
+                videoTitle={videoTitle}
+                videoYear={videoYear}
+                totalEpisodes={totalEpisodes}
+                currentEpisodeIndex={currentEpisodeIndex}
+                detail={detail}
+                favorited={favorited}
+                following={following}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleFollowing={handleToggleFollowing}
+                videoUrl={videoUrl}
+                videoDoubanId={videoDoubanId}
+                currentSource={currentSource}
+                currentId={currentId}
+                onDownload={() => setShowAddDownload(true)}
+              />
+            </div>
+
+            {/* 选集和换源：手机横向滑，桌面在右侧 */}
+            <div className='order-3 h-[200px] border-t border-black/5 md:col-start-4 md:row-start-1 md:h-[420px] md:overflow-hidden md:border-l md:border-t-0 lg:h-[520px] xl:h-[620px] dark:border-white/10'>
               <EpisodeSelector
                 totalEpisodes={totalEpisodes}
                 episodes_titles={detail?.episodes_titles || []}
@@ -264,39 +284,17 @@ export default function PlayClient() {
           </div>
         </div>
 
-        {/* 详情展示 */}
-        <div className='mt-4 md:mt-6'>
-          <div className='rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 md:p-6 dark:bg-white/[0.03] dark:ring-white/10'>
-            <VideoDetailPanel
+        {/* 评论单独一块，跟在选集后面 */}
+        {currentSource && currentId && (
+          <div className='mt-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 md:p-6 dark:bg-white/[0.03] dark:ring-white/10'>
+            <CommentPanel
+              source={currentSource}
+              id={currentId}
+              episode={currentEpisodeIndex + 1}
               videoTitle={videoTitle}
-              videoYear={videoYear}
-              totalEpisodes={totalEpisodes}
-              currentEpisodeIndex={currentEpisodeIndex}
-              detail={detail}
-              favorited={favorited}
-              following={following}
-              onToggleFavorite={handleToggleFavorite}
-              onToggleFollowing={handleToggleFollowing}
-              videoUrl={videoUrl}
-              videoDoubanId={videoDoubanId}
-              currentSource={currentSource}
-              currentId={currentId}
-              onDownload={() => setShowAddDownload(true)}
             />
-
-            {/* 影片评论区：登录用户可发表，本人与管理员可删除 */}
-            {currentSource && currentId && (
-              <div className='mt-4 border-t border-black/5 pt-4 dark:border-white/10'>
-                <CommentPanel
-                  source={currentSource}
-                  id={currentId}
-                  episode={currentEpisodeIndex + 1}
-                  videoTitle={videoTitle}
-                />
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* 添加下载弹窗 */}

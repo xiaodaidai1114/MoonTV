@@ -134,7 +134,9 @@ export default function HomeDiscovery() {
 
     void (async () => {
       try {
-        const response = await fetch('/api/season-anime?limit=16');
+        const response = await fetch('/api/season-anime?limit=16', {
+          cache: 'no-store',
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (!cancelled) {

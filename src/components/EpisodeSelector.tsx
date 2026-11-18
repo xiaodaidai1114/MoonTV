@@ -462,9 +462,9 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
             </button>
           </div>
 
-          {/* 集数网格 */}
-          <div className='scrollbar-hide flex-1 overflow-y-auto pb-1'>
-            <div className='grid grid-cols-3 gap-2 sm:grid-cols-4'>
+          {/* 集数：手机横向滑，桌面网格 */}
+          <div className='scrollbar-hide flex-1 overflow-x-auto overflow-y-hidden pb-1 md:overflow-y-auto md:overflow-x-hidden'>
+            <div className='flex w-max gap-2 md:grid md:w-auto md:grid-cols-3 md:gap-2 xl:grid-cols-4'>
               {(() => {
                 const len = currentEnd - currentStart + 1;
                 const episodes = Array.from({ length: len }, (_, i) =>
@@ -477,7 +477,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                   <button
                     key={episodeNumber}
                     onClick={() => handleEpisodeClick(episodeNumber - 1)}
-                    className={`flex h-9 items-center justify-center whitespace-nowrap rounded-lg px-1 py-1 font-mono text-xs font-medium transition-all duration-200
+                    className={`flex h-10 min-w-[4.5rem] flex-shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-2 py-1 font-mono text-xs font-medium transition-all duration-200 md:h-9 md:min-w-0 md:px-1
                       ${
                         isActive
                           ? 'bg-green-500 text-white shadow-sm shadow-green-500/25 dark:bg-green-600'

@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
         total: items.length,
         items: items.slice(0, limit),
       },
-      { headers: { 'Cache-Control': 'public, max-age=1800' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('新番推荐接口异常:', error);

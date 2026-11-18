@@ -34,6 +34,14 @@ export function processImageUrl(originalUrl: string): string {
 
   const normalizedUrl = originalUrl.trim();
 
+  // Bangumi 封面统一走本站 /bgm-img，避免浏览器直连 lain.bgm.tv 被限速或拿到空图
+  const bangumiPath = normalizedUrl.match(
+    /^(?:https?:)?\/\/(?:lain\.bgm\.tv|[^/]+)(?:\/bgm-img)?(\/pic\/cover\/[^?#]+)/i
+  );
+  if (bangumiPath) {
+    return `/bgm-img${bangumiPath[1]}`;
+  }
+
   // 已经是本地代理、内联资源或本地资源时，直接返回
   if (
     normalizedUrl.startsWith('/api/image-proxy?url=') ||

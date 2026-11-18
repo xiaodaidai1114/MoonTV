@@ -40,6 +40,7 @@ function isBangumiCalendarEntry(value: unknown): value is BangumiCalendarData {
 export async function GetBangumiCalendarData(): Promise<BangumiCalendarData[]> {
   try {
     const response = await fetch('/api/bangumi/calendar', {
+      cache: 'no-store',
       headers: {
         Accept: 'application/json',
       },
