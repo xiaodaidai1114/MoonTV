@@ -268,43 +268,61 @@ function patchDanmukuConfig(danmuku: Record<string, any>) {
     if (args[0] !== undefined) return originalLoad(...args);
 
     const url = danmuku.option?.danmuku;
-    if (typeof url !== 'string' || !url.trim()) return danmuku;
+    if (typeof url === 'string' && url.trim()) {
+      let xml: string;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`弹幕请求失败：HTTP ${response.status}`);
+        }
+        xml = await response.text();
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : '弹幕加载失败';
 
-    let xml: string;
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`弹幕请求失败：HTTP ${response.status}`);
+        danmuku.art?.emit('artplayerPluginDanmuku:error', error);
+        // 全屏时页面级提示不可见，播放器右上角再提示一次
+        pushPlayerNotice(danmuku.art, message, {
+          key: 'danmaku-load-error',
+          // 停留 5 秒；durationMs <= 0 才是常驻
+          durationMs: 5000,
+        });
+        throw error;
       }
-      xml = await response.text();
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : '弹幕加载失败';
 
-      danmuku.art?.emit('artplayerPluginDanmuku:error', error);
-      // 全屏时页面级提示不可见，播放器右上角再提示一次
-      pushPlayerNotice(danmuku.art, message, {
-        key: 'danmaku-load-error',
-        // 停留 5 秒；durationMs <= 0 才是常驻
-        durationMs: 5000,
-      });
-      throw error;
+      // 复刻官方 load() 的 reset 分支：传数组给原实现时它不会自动清空
+      try {
+        danmuku.reset?.();
+      } catch (_) {
+        // ignore
+      }
+      danmuku.queue = [];
+      danmuku.states = { wait: [], ready: [], emit: [], stop: [] };
+      danmuku.$refs = [];
+      if (danmuku.$danmuku) danmuku.$danmuku.textContent = '';
+
+      return originalLoad(parseBilibiliDanmakuXml(xml));
     }
 
-    // 复刻官方 load() 的 reset 分支：传数组给原实现时它不会自动清空
-    try {
-      danmuku.reset?.();
-    } catch (_) {
-      // ignore
-    }
-    danmuku.queue = [];
-    danmuku.states = { wait: [], ready: [], emit: [], stop: [] };
-    danmuku.$refs = [];
-    if (danmuku.$danmuku) danmuku.$danmuku.textContent = '';
+    // option.danmuku 是调用方（自动匹配/手动选源）已解析好的弹幕数组：
+    // 这里必须同样清队并交给原实现，否则 load() 直接返回、屏幕上永远没有弹幕
+    if (Array.isArray(url)) {
+      try {
+        danmuku.reset?.();
+      } catch (_) {
+        // ignore
+      }
+      danmuku.queue = [];
+      danmuku.states = { wait: [], ready: [], emit: [], stop: [] };
+      danmuku.$refs = [];
+      if (danmuku.$danmuku) danmuku.$danmuku.textContent = '';
 
-    return originalLoad(parseBilibiliDanmakuXml(xml));
+      return originalLoad(url);
+    }
+
+    return danmuku;
   };
 
   /** 实例级密度节流器：按当前挡位限制真正上屏的速率 */
