@@ -42,8 +42,9 @@ function replaceImageUrl(
     items: (day.items || [])
       .filter((item) => item.images)
       .map((item) => {
+        // 日历数据里的封面有 http 和 https 两种写法，都要替换
         const replace = (url: string) =>
-          url.replace('https://lain.bgm.tv', imageProxy);
+          url.replace(/^https?:\/\/lain\.bgm\.tv/, imageProxy);
         return {
           ...item,
           images: {

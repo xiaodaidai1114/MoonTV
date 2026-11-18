@@ -143,7 +143,10 @@ export async function GET(request: NextRequest) {
           id: item.id,
           title,
           poster: normalizedImageProxy
-            ? pickPoster(item).replace('https://lain.bgm.tv', normalizedImageProxy)
+            ? pickPoster(item).replace(
+                /^https?:\/\/lain\.bgm\.tv/,
+                normalizedImageProxy
+              )
             : pickPoster(item),
           rate:
             Number.isFinite(rawScore) && rawScore > 0
