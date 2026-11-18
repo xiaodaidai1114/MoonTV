@@ -537,6 +537,57 @@ export function extractEpisodeNumber(episodeTitle: string): number | null {
  * @param episodeNumber 集数（从1开始，基于弹幕选择器中选择的集数）
  * @param format 弹幕格式（json 或 xml）
  */
+export interface DanmakuCue {
+  text: string;
+  time: number;
+  mode: number;
+  color: string;
+}
+
+function mapDanmakuMode(raw: number): number {
+  if (raw === 4) return 2;
+  if (raw === 5) return 1;
+  return 0;
+}
+
+/**
+ * 在主线程解析弹幕 XML。
+ * 插件自带解析会起 Blob Worker，手机 WebView 经常拦掉，结果就是开关开了也没有字。
+ */
+export async function fetchDanmakuCues(url: string): Promise<DanmakuCue[]> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const xml = await response.text();
+  const cues: DanmakuCue[] = [];
+  const pattern = /<d\b[^>]*?\bp="([^"]+)"[^>]*>([\s\S]*?)<\/d>/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(xml))) {
+    const parts = match[1].split(',');
+    if (parts.length < 4) continue;
+    const text = match[2]
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+    if (!text) continue;
+    const color = Number(parts[3]);
+    cues.push({
+      text,
+      time: Number(parts[0]) || 0,
+      mode: mapDanmakuMode(Number(parts[1])),
+      color: `#${(Number.isFinite(color) ? color : 16777215)
+        .toString(16)
+        .padStart(6, '0')}`,
+    });
+  }
+  return cues;
+}
+
 export async function getDanmakuBySelectedAnime(
   selectedAnime: AnimeOption,
   episodeNumber: number,

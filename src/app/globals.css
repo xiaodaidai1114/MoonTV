@@ -326,6 +326,53 @@ div[data-media-provider] video {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  position: relative;
+  z-index: 1;
+}
+.art-video-player .art-danmuku {
+  z-index: 35 !important;
+}
+.art-video-player .art-danmuku [data-mode] {
+  font-weight: 600;
+  text-shadow:
+    0 0 2px #000,
+    1px 1px 2px #000,
+    -1px -1px 2px #000;
+}
+.moontv-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 22px;
+  color: #fff;
+}
+.moontv-quality-panel {
+  position: absolute;
+  right: 8px;
+  bottom: 48px;
+  z-index: 50;
+  display: flex;
+  max-height: 240px;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  padding: 8px;
+}
+.moontv-quality-panel button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+  color: #fff;
+}
+.moontv-quality-panel button.is-active {
+  background: rgba(22, 163, 74, 0.85);
 }
 .art-poster {
   background-size: contain !important;

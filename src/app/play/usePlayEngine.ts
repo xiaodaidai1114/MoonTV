@@ -15,6 +15,7 @@ import {
   AnimeOption,
   extractEpisodeNumber,
   extractSeasonFromTitle,
+  fetchDanmakuCues,
   getDanmakuBySelectedAnime,
   matchAnime,
   searchEpisodes,
@@ -504,7 +505,12 @@ export function usePlayEngine() {
         if (isManualSelect) beginManualDanmakuLoad();
 
         console.log('动态更新弹幕源:', url);
-        inst.config({ danmuku: url });
+        const cues = await fetchDanmakuCues(url);
+        inst.config({
+          danmuku: cues,
+          visible: true,
+        });
+        inst.show?.();
 
         // 切集/手动选择时弹幕已隐藏，load() 内部会在远端返回后 reset 并写入
         // 新队列，完成后再恢复可见性，因此这里不需要额外 reset（避免重复清屏卡顿）
@@ -514,12 +520,20 @@ export function usePlayEngine() {
             if (lastDanmakuUrlRef.current === url) {
               if (isManualSelect) setIsDanmakuLoading(false);
               try {
+                inst.show?.();
                 inst.config({ visible: true });
-                inst.visible = true;
               } catch {
                 // ignore
               }
+              pendingDanmakuVisibleRestoreRef.current = true;
               scheduleDanmakuVisibleRestore();
+              pushPlayerNotice(
+                artPlayerRef.current,
+                cues.length
+                  ? `弹幕已打开，共 ${cues.length} 条`
+                  : '这个片暂时没有弹幕',
+                { key: 'danmaku-loaded', durationMs: 4000 }
+              );
             }
           })
           .catch((e: unknown) => {
@@ -3189,6 +3203,111 @@ export function usePlayEngine() {
             tooltip: '播放下一集',
             click: function () {
               handleNextEpisode();
+            },
+          },
+          {
+            position: 'right',
+            index: 12,
+            html: '<span class="moontv-bar-btn">弹幕</span>',
+            tooltip: '开关弹幕',
+            click: function () {
+              const inst = danmukuPluginInstanceRef.current;
+              if (!inst) return;
+              const hidden = inst.isHide || inst.option?.visible === false;
+              if (hidden) {
+                inst.show?.();
+                inst.config?.({ visible: true });
+                const url = lastDanmakuUrlRef.current;
+                if (url && (!inst.queue || inst.queue.length === 0)) {
+                  void fetchDanmakuCues(url)
+                    .then((cues) => {
+                      inst.config({ danmuku: cues, visible: true });
+                      inst.show?.();
+                      return inst.load();
+                    })
+                    .catch(() => {
+                      pushPlayerNotice(artPlayerRef.current, '弹幕加载失败', {
+                        key: 'danmaku-loaded',
+                        durationMs: 3000,
+                      });
+                    });
+                }
+              } else {
+                inst.hide?.();
+              }
+            },
+          },
+          {
+            position: 'right',
+            index: 11,
+            html: '<span class="moontv-bar-btn moontv-quality-label">画质</span>',
+            tooltip: '切换画质',
+            click: function () {
+              const art = artPlayerRef.current;
+              const host = art?.template?.$player as HTMLElement | undefined;
+              if (!art || !host) return;
+              const existing = host.querySelector('.moontv-quality-panel');
+              if (existing) {
+                existing.remove();
+                return;
+              }
+              const hls = art.video?.hls;
+              const levels: any[] = Array.isArray(hls?.levels) ? hls.levels : [];
+              const panel = document.createElement('div');
+              panel.className = 'moontv-quality-panel';
+              const add = (label: string, onClick: () => void, active = false) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                if (active) button.className = 'is-active';
+                button.addEventListener('click', (event) => {
+                  event.stopPropagation();
+                  onClick();
+                  const badge = host.querySelector('.moontv-quality-label');
+                  if (badge) badge.textContent = label.replace(/（仅此档）/, '');
+                  panel.remove();
+                });
+                panel.appendChild(button);
+              };
+              if (levels.length > 1 && hls) {
+                add('自动', () => {
+                  hls.currentLevel = -1;
+                }, hls.currentLevel === -1);
+                levels.forEach((level, index) => {
+                  add(
+                    describeLevel(level),
+                    () => {
+                      hls.currentLevel = index;
+                    },
+                    hls.currentLevel === index
+                  );
+                });
+              } else {
+                add(
+                  levels[0] ? `${describeLevel(levels[0])}（仅此档）` : '自动',
+                  () => {
+                    if (hls) hls.currentLevel = -1;
+                  },
+                  true
+                );
+                availableSourcesRef.current.slice(0, 6).forEach((item) => {
+                  if (
+                    item.source === currentSourceRef.current &&
+                    item.id === currentIdRef.current
+                  ) {
+                    return;
+                  }
+                  add(`换源 · ${item.source_name || item.source}`, () => {
+                    void handleSourceChangeRef.current?.(
+                      item.source,
+                      item.id,
+                      item.title || '',
+                      { auto: false }
+                    );
+                  });
+                });
+              }
+              host.appendChild(panel);
             },
           },
         ],
