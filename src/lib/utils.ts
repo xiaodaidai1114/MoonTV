@@ -186,7 +186,7 @@ export async function probeSourceSpeed(m3u8Url: string): Promise<{
       if (done || !value) break;
       bytes += value.length;
       if (bytes >= bytesTarget || elapsedMs() > 3000) {
-        reader.cancel().catch(() => {});
+        reader.cancel().catch(() => undefined);
         break;
       }
     }
