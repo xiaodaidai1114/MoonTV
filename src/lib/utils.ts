@@ -103,6 +103,104 @@ export function processImageUrl(originalUrl: string): string {
  * @param m3u8Url m3u8播放列表的URL
  * @returns Promise<{quality: string, loadSpeed: string, pingTime: number}> 视频质量等级和网络信息
  */
+/**
+ * 轻量测速：只拉 m3u8 清单和首个分片的前 ~256KB，不创建真实视频实例。
+ *
+ * 与 getVideoResolutionFromM3u8（完整视频加载）相比，单次探测从数秒降到
+ * 1-2 秒，且不会和正在播放的视频抢占解码资源。画质信息只有在清单是
+ * master playlist（带 RESOLUTION 标注）时才能拿到，否则返回空字符串，
+ * 由调用方决定是否补测。
+ */
+export async function probeSourceSpeed(m3u8Url: string): Promise<{
+  quality: string;
+  loadSpeed: string;
+  pingTime: number;
+}> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const pingStart = performance.now();
+    const playlistRes = await fetch(m3u8Url, { signal: controller.signal });
+    const pingTime = Math.round(performance.now() - pingStart);
+    if (!playlistRes.ok) {
+      throw new Error(`HTTP ${playlistRes.status}`);
+    }
+    const playlist = await playlistRes.text();
+
+    // master playlist：取第一个带 RESOLUTION 的变体（画质可直接读出），
+    // 继续向下一层媒体清单探测速度
+    let quality = '';
+    let mediaUrl = m3u8Url;
+    if (playlist.includes('#EXT-X-STREAM-INF')) {
+      const lines = playlist.split('\n');
+      for (let i = 0; i < lines.length; i += 1) {
+        if (!lines[i].includes('#EXT-X-STREAM-INF')) continue;
+        const resMatch = lines[i].match(/RESOLUTION=(\d+)x(\d+)/i);
+        if (resMatch) {
+          const height = Number(resMatch[2]);
+          quality =
+            height >= 2000
+              ? '4K'
+              : height >= 1440
+                ? '2K'
+                : height >= 1080
+                  ? '1080p'
+                  : height >= 720
+                    ? '720p'
+                    : height >= 480
+                      ? '480p'
+                      : `${height}p`;
+        }
+        const next = lines[i + 1]?.trim();
+        if (next && !next.startsWith('#')) {
+          mediaUrl = new URL(next, m3u8Url).href;
+          break;
+        }
+      }
+    }
+
+    // 媒体清单：找到第一个分片地址
+    const mediaRes = await fetch(mediaUrl, { signal: controller.signal });
+    const mediaText = await mediaRes.text();
+    const segmentLine = mediaText
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith('#'));
+    if (!segmentLine) {
+      throw new Error('清单里没有分片');
+    }
+    const segmentUrl = new URL(segmentLine, mediaUrl).href;
+
+    // 拉首个分片：累计 ~256KB 或 3 秒后停止，换算速度
+    const segStart = performance.now();
+    const segRes = await fetch(segmentUrl, { signal: controller.signal });
+    if (!segRes.ok || !segRes.body) {
+      throw new Error(`分片 HTTP ${segRes.status}`);
+    }
+    const reader = segRes.body.getReader();
+    let bytes = 0;
+    const bytesTarget = 256 * 1024;
+    const elapsedMs = () => performance.now() - segStart;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      bytes += value.length;
+      if (bytes >= bytesTarget || elapsedMs() > 3000) {
+        reader.cancel().catch(() => {});
+        break;
+      }
+    }
+    const seconds = Math.max(elapsedMs() / 1000, 0.001);
+    const kbps = bytes / 1024 / seconds;
+    const loadSpeed =
+      kbps >= 1024 ? `${(kbps / 1024).toFixed(2)} MB/s` : `${Math.round(kbps)} KB/s`;
+
+    return { quality, loadSpeed, pingTime };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
   quality: string; // 如720p、1080p等
   loadSpeed: string; // 自动转换为KB/s或MB/s

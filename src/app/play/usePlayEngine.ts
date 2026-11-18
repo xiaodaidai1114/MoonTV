@@ -10,7 +10,7 @@ import {
   setSettingTooltip,
   updateSettingPreservingPanel,
 } from '@/lib/artplayer-setting';
-import { getSearchConcurrency } from '@/lib/concurrency';
+import { getSearchConcurrency, mapWithConcurrency } from '@/lib/concurrency';
 import {
   AnimeOption,
   extractEpisodeNumber,
@@ -54,6 +54,7 @@ import { SearchResult } from '@/lib/types';
 import {
   getRequestTimeout,
   getVideoResolutionFromM3u8,
+  probeSourceSpeed,
   processImageUrl,
 } from '@/lib/utils';
 import {
@@ -865,55 +866,64 @@ export function usePlayEngine() {
     sources: SearchResult[],
     isCancelled?: () => boolean
   ): Promise<SearchResult> => {
-    if (sources.length === 1) return sources[0];
-
-    // 检查是否已取消
-    if (isCancelled?.()) {
-      throw new Error('优选已取消');
+    if (sources.length === 1) {
+      setAvailableSources(sources);
+      return sources[0];
     }
 
-    // 将播放源均分为两批，并发测速各批，避免一次性过多请求
-    const batchSize = Math.ceil(sources.length / 2);
-    const allResults: Array<{
-      source: SearchResult;
-      testResult: { quality: string; loadSpeed: string; pingTime: number };
-    } | null> = [];
+    const withEpisodes = sources.filter(
+      (source) => source.episodes && source.episodes.length > 0
+    );
+    if (withEpisodes.length === 0) {
+      setAvailableSources(sources);
+      return sources[0];
+    }
+    const testUrl = (source: SearchResult) =>
+      source.episodes.length > 1 ? source.episodes[1] : source.episodes[0];
 
-    for (let start = 0; start < sources.length; start += batchSize) {
-      // 检查是否已取消
-      if (isCancelled?.()) {
-        throw new Error('优选已取消');
+    // 第一阶段：轻量探测（清单 + 首片 256KB），并发 5，不创建视频实例，
+    // 避免十几个网络视频加载与正在播放的内容抢带宽
+    if (isCancelled?.()) throw new Error('优选已取消');
+    const stage1 = await mapWithConcurrency(
+      withEpisodes,
+      5,
+      async (source) => {
+        if (isCancelled?.()) throw new Error('优选已取消');
+        try {
+          const testResult = await probeSourceSpeed(testUrl(source));
+          return { source, testResult };
+        } catch {
+          return null;
+        }
       }
-      const batchSources = sources.slice(start, start + batchSize);
-      const batchResults = await Promise.all(
-        batchSources.map(async (source) => {
-          try {
-            // 检查是否有第一集的播放地址
-            if (!source.episodes || source.episodes.length === 0) {
-              console.warn(`播放源 ${source.source_name} 没有可用的播放地址`);
-              return null;
-            }
+    );
+    const measured = stage1.filter(
+      (item): item is { source: SearchResult; testResult: { quality: string; loadSpeed: string; pingTime: number } } =>
+        item !== null
+    );
 
-            const episodeUrl =
-              source.episodes.length > 1
-                ? source.episodes[1]
-                : source.episodes[0];
-            const testResult = await getVideoResolutionFromM3u8(episodeUrl);
+    const speedToKbps = (speedStr: string): number => {
+      const match = speedStr.match(/^([\d.]+)\s*(KB\/s|MB\/s)$/);
+      if (!match) return 0;
+      const value = parseFloat(match[1]);
+      return match[2] === 'MB/s' ? value * 1024 : value;
+    };
 
-            return {
-              source,
-              testResult,
-            };
-          } catch (error) {
-            return null;
-          }
-        })
-      );
-      allResults.push(...batchResults);
-    }
+    // 第二阶段：只对速度前 5 名补测真实画质（每个源一次视频元数据加载），
+    // 画质在综合评分里占 60%，但完整测量的成本高，因此只覆盖头部候选
+    const topBySpeed = [...measured]
+      .sort((a, b) => speedToKbps(b.testResult.loadSpeed) - speedToKbps(a.testResult.loadSpeed))
+      .slice(0, 5);
+    await mapWithConcurrency(topBySpeed, 3, async (entry) => {
+      if (isCancelled?.()) throw new Error('优选已取消');
+      try {
+        const info = await getVideoResolutionFromM3u8(testUrl(entry.source));
+        entry.testResult = { ...entry.testResult, quality: info.quality };
+      } catch {
+        // 保持轻量探测结果（画质为空，评分按 0 计）
+      }
+    });
 
-    // 等待所有测速完成，包含成功和失败的结果
-    // 保存所有测速结果到 precomputedVideoInfo，供 EpisodeSelector 使用（包含错误结果）
     const newVideoInfoMap = new Map<
       string,
       {
@@ -923,89 +933,45 @@ export function usePlayEngine() {
         hasError?: boolean;
       }
     >();
-    allResults.forEach((result, index) => {
-      const source = sources[index];
-      const sourceKey = `${source.source}-${source.id}`;
-
-      if (result) {
-        // 成功的结果
-        newVideoInfoMap.set(sourceKey, result.testResult);
-      }
+    measured.forEach((entry) => {
+      newVideoInfoMap.set(`${entry.source.source}-${entry.source.id}`, {
+        ...entry.testResult,
+      });
     });
-
-    // 过滤出成功的结果用于优选计算
-    const successfulResults = allResults.filter(Boolean) as Array<{
-      source: SearchResult;
-      testResult: { quality: string; loadSpeed: string; pingTime: number };
-    }>;
-
-    // 检查是否已取消
-    if (isCancelled?.()) {
-      throw new Error('优选已取消');
-    }
     setPrecomputedVideoInfo(newVideoInfoMap);
 
-    if (successfulResults.length === 0) {
+    if (isCancelled?.()) throw new Error('优选已取消');
+    if (measured.length === 0) {
       console.warn('所有播放源测速都失败，使用第一个播放源');
-      // 虽然没有测速结果，但仍更新 availableSources 以保持一致性（顺序不变）
       setAvailableSources(sources);
       return sources[0];
     }
 
-    // 找出所有有效速度的最大值，用于线性映射
-    const validSpeeds = successfulResults
-      .map((result) => {
-        const speedStr = result.testResult.loadSpeed;
-        if (speedStr === '未知' || speedStr === '测量中...') return 0;
-
-        const match = speedStr.match(/^([\d.]+)\s*(KB\/s|MB\/s)$/);
-        if (!match) return 0;
-
-        const value = parseFloat(match[1]);
-        const unit = match[2];
-        return unit === 'MB/s' ? value * 1024 : value; // 统一转换为 KB/s
-      })
+    const validSpeeds = measured
+      .map((entry) => speedToKbps(entry.testResult.loadSpeed))
       .filter((speed) => speed > 0);
+    const maxSpeed = validSpeeds.length > 0 ? Math.max(...validSpeeds) : 1024;
 
-    const maxSpeed = validSpeeds.length > 0 ? Math.max(...validSpeeds) : 1024; // 默认1MB/s作为基准
-
-    // 找出所有有效延迟的最小值和最大值，用于线性映射
-    const validPings = successfulResults
-      .map((result) => result.testResult.pingTime)
+    const validPings = measured
+      .map((entry) => entry.testResult.pingTime)
       .filter((ping) => ping > 0);
-
     const minPing = validPings.length > 0 ? Math.min(...validPings) : 50;
     const maxPing = validPings.length > 0 ? Math.max(...validPings) : 1000;
 
-    // 计算每个结果的评分
-    const resultsWithScore = successfulResults.map((result) => ({
-      ...result,
-      score: calculateSourceScore(
-        result.testResult,
-        maxSpeed,
-        minPing,
-        maxPing
-      ),
+    const resultsWithScore = measured.map((entry) => ({
+      ...entry,
+      score: calculateSourceScore(entry.testResult, maxSpeed, minPing, maxPing),
     }));
-
-    // 按综合评分排序，选择最佳播放源
     resultsWithScore.sort((a, b) => b.score - a.score);
 
-    // 构建评分映射
-    const scoreMap = new Map<string, number>();
-    resultsWithScore.forEach((result) => {
-      const key = `${result.source.source}-${result.source.id}`;
-      scoreMap.set(key, result.score);
-    });
-
-    // 为所有源（包括测速失败的）添加评分，失败源评分设为 -1
     const scoredSources = sources.map((source, index) => {
       const key = `${source.source}-${source.id}`;
-      const score = scoreMap.get(key) ?? -1;
+      const score =
+        resultsWithScore.find(
+          (entry) => entry.source.source === source.source && entry.source.id === source.id
+        )?.score ?? -1;
       return { source, score, index };
     });
-
-    // 按评分降序排序，评分相同则保持原顺序
     scoredSources.sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       return a.index - b.index;
@@ -1013,11 +979,7 @@ export function usePlayEngine() {
 
     const sortedSources = scoredSources.map((item) => item.source);
 
-    // 检查是否已取消
-    if (isCancelled?.()) {
-      throw new Error('优选已取消');
-    }
-    // 更新 availableSources 状态，使列表按评分排序
+    if (isCancelled?.()) throw new Error('优选已取消');
     setAvailableSources(sortedSources);
 
     return resultsWithScore[0].source;
@@ -1422,16 +1384,41 @@ export function usePlayEngine() {
       }
 
       if (enablePreferBestSourceFromStorage && allResults.length > 1) {
-        setLoadingStage('preferring');
-        setLoadingMessage('🚀 正在优选播放源...');
-        try {
-          const bestSource = await preferBestSource(allResults);
-          // preferBestSource 内部已经排序了 availableSources 并设置了 precomputedVideoInfo
-          detailData = bestSource;
-        } catch (err) {
-          console.error('优选播放源失败:', err);
-          // 失败时使用原来的 detailData
-        }
+        // 立即开播：优先快源白名单命中的源，不再阻塞等待全量测速
+        // （旧流程等所有源测完才开播，用户要干等 5-15 秒）
+        const fastHit =
+          allResults.find(
+            (item) =>
+              isPreferredSource(item.source) &&
+              item.episodes &&
+              item.episodes.length > 0
+          ) || allResults[0];
+        detailData = fastHit;
+        initDetail(detailData);
+        hasInitialized = true;
+
+        // 测速在后台进行：完成后只更新换源面板的排序与画质标注，
+        // 不打断正在播放的内容；测出更快的源时给一个提示
+        const cancelledRef = { cancelled: false };
+        void preferBestSource(allResults, () => cancelledRef.cancelled)
+          .then((best) => {
+            if (
+              cancelledRef.cancelled ||
+              !best ||
+              best.source === fastHit.source ||
+              !artPlayerRef.current
+            ) {
+              return;
+            }
+            pushPlayerNotice(
+              artPlayerRef.current,
+              `测速完成：「${best.source_name}」速度更快，可在换源面板切换`,
+              { key: 'prefer-best-done', durationMs: 6000 }
+            );
+          })
+          .catch(() => {
+            // 后台测速失败不影响播放
+          });
       }
 
       // 如果尚未初始化播放数据，则初始化
