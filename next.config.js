@@ -11,6 +11,50 @@ const nextConfig = {
   reactStrictMode: false,
   swcMinify: true,
 
+  // 东京服务器本机中转（仅自托管 Docker 环境有意义）：
+  // - /bgm-relay/*  -> 本机 nginx(127.0.0.1:9322) -> api.bgm.tv（京东机房 DNS 被污染，直连不通）
+  // - /bgm-img/*    -> 本机 nginx(127.0.0.1:9322) -> lain.bgm.tv（图片）
+  // - /danmu-relay/*-> 本机 danmu-api(127.0.0.1:9321)，弹幕 API（浏览器跨域，需 CORS 头）
+  // 云平台（Vercel/CF）构建无法访问本机容器，仅 Docker 环境启用。
+  ...(process.env.DOCKER_ENV === 'true'
+    ? {
+        async rewrites() {
+          return [
+            {
+              source: '/bgm-relay/:path*',
+              destination: 'http://127.0.0.1:9322/bgm-a7x92k/:path*',
+            },
+            {
+              source: '/bgm-img/:path*',
+              destination: 'http://127.0.0.1:9322/bgmimg-a7x92k/:path*',
+            },
+            {
+              source: '/danmu-relay/:path*',
+              destination: 'http://127.0.0.1:9321/:path*',
+            },
+          ];
+        },
+        async headers() {
+          return [
+            {
+              source: '/danmu-relay/:path*',
+              headers: [
+                { key: 'Access-Control-Allow-Origin', value: '*' },
+                {
+                  key: 'Access-Control-Allow-Methods',
+                  value: 'GET,POST,OPTIONS',
+                },
+                {
+                  key: 'Access-Control-Allow-Headers',
+                  value: 'Content-Type',
+                },
+              ],
+            },
+          ];
+        },
+      }
+    : {}),
+
   // Uncoment to add domain whitelist
   images: {
     unoptimized: true,

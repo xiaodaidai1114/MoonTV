@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import AddDownloadModal from '@/components/AddDownloadModal';
 import { BackButton } from '@/components/BackButton';
 import CacheManager from '@/components/CacheManager';
+import CommentPanel from '@/components/CommentPanel';
 import DanmakuSelector from '@/components/DanmakuSelector';
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
@@ -282,6 +283,18 @@ export default function PlayClient() {
               currentId={currentId}
               onDownload={() => setShowAddDownload(true)}
             />
+
+            {/* 影片评论区：登录用户可发表，本人与管理员可删除 */}
+            {currentSource && currentId && (
+              <div className='mt-4 border-t border-black/5 pt-4 dark:border-white/10'>
+                <CommentPanel
+                  source={currentSource}
+                  id={currentId}
+                  episode={currentEpisodeIndex + 1}
+                  videoTitle={videoTitle}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

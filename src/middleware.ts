@@ -132,6 +132,10 @@ function shouldSkipAuth(pathname: string): boolean {
     '/api/image-proxy',
     // HGhub 插件适配层：由源适配与签名令牌保护，不走登录态
     '/api/hghub',
+    // 本机中转（Bangumi API/图片、弹幕 API）：供站点配置的代理地址使用，无登录态
+    '/bgm-relay/',
+    '/bgm-img/',
+    '/danmu-relay/',
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));

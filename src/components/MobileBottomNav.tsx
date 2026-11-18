@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Cat, Clapperboard, Clover, Compass, Film, Home, Search, Sparkles, Trophy, Tv, Flame } from 'lucide-react';
+import { Cat, Clapperboard, Clover, Compass, Film, Flame, Home, Library, Search, Sparkles, Trophy, Tv, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useState } from 'react';
@@ -27,39 +27,21 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   const currentActive =
     activePath ?? (searchQuery ? `${pathname}?${searchQuery}` : pathname);
 
+  // 片库弹层：把电影/剧集/短剧/纪录片/动漫/综艺收进一个入口
+  const [libraryItems] = useState([
+    { icon: Film, label: '电影', href: '/douban?type=movie' },
+    { icon: Tv, label: '剧集', href: '/douban?type=tv' },
+    { icon: Clapperboard, label: '短剧', href: '/short-drama' },
+    { icon: Compass, label: '纪录片', href: '/douban?type=doc' },
+    { icon: Cat, label: '动漫', href: '/douban?type=anime' },
+    { icon: Clover, label: '综艺', href: '/douban?type=show' },
+  ]);
+  const [showLibrarySheet, setShowLibrarySheet] = useState(false);
+
   const [navItemsAll] = useState([
     { icon: Home, label: '首页', href: '/' },
     { icon: Search, label: '搜索', href: '/search' },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Clapperboard,
-      label: '短剧',
-      href: '/short-drama',
-    },
-    {
-      icon: Compass,
-      label: '纪录片',
-      href: '/douban?type=doc',
-    },
-    {
-      icon: Cat,
-      label: '动漫',
-      href: '/douban?type=anime',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
+    { icon: Library, label: '片库', href: '#library' },
     {
       icon: Sparkles,
       label: 'AI找剧',
@@ -160,6 +142,44 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
             return null;
           }
 
+          // 片库入口：点击弹出选择层
+          if (item.href === '#library') {
+            const libraryActive =
+              pathname.startsWith('/douban') || pathname.startsWith('/short-drama');
+            return (
+              <li
+                key={item.href}
+                className='flex-shrink-0'
+                style={{
+                  width: simpleMode ? '50vw' : '20vw',
+                  minWidth: simpleMode ? '50vw' : '20vw',
+                }}
+              >
+                <button
+                  className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
+                  onClick={() => setShowLibrarySheet(true)}
+                >
+                  <item.icon
+                    className={`h-6 w-6 ${
+                      libraryActive
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                  />
+                  <span
+                    className={
+                      libraryActive
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-gray-600 dark:text-gray-300'
+                    }
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              </li>
+            );
+          }
+
           return (
             <li
               key={item.href}
@@ -200,6 +220,66 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
           );
         })}
       </ul>
+
+      {/* 片库选择弹层 */}
+      {showLibrarySheet && (
+        <div
+          className='fixed inset-0 z-[650] bg-black/40'
+          onClick={() => setShowLibrarySheet(false)}
+        >
+          <div
+            className='absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white p-5 pb-8 dark:bg-gray-900'
+            style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className='mb-4 flex items-center justify-between'>
+              <h3 className='text-base font-semibold text-gray-800 dark:text-gray-200'>
+                选择片库分类
+              </h3>
+              <button
+                onClick={() => setShowLibrarySheet(false)}
+                className='rounded-full p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                aria-label='关闭'
+              >
+                <X className='h-5 w-5' />
+              </button>
+            </div>
+            <div className='grid grid-cols-3 gap-3'>
+              {libraryItems.map((item) => {
+                const decodedActive = decodeURIComponent(currentActive);
+                const decodedHref = decodeURIComponent(item.href);
+                const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
+                const active =
+                  decodedActive === decodedHref ||
+                  (decodedActive.startsWith('/douban') &&
+                    !!typeMatch &&
+                    decodedActive.includes(`type=${typeMatch}`)) ||
+                  (item.href === '/short-drama' &&
+                    decodedActive.startsWith('/short-drama'));
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => {
+                      setShowLibrarySheet(false);
+                      if (!active) startLoading();
+                    }}
+                    className={`flex flex-col items-center gap-2 rounded-xl border py-4 text-xs font-medium transition-colors ${
+                      active
+                        ? 'border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400'
+                        : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                    }`}
+                  >
+                    <Icon className='h-6 w-6' />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 };

@@ -10,6 +10,7 @@ import {
   PlayRecord,
   SkipConfig,
   TodayUpdatedRecord,
+  VideoComment,
 } from './types';
 
 // 搜索历史最大条数
@@ -424,6 +425,54 @@ export abstract class BaseRedisStorage implements IStorage {
     } else {
       await this.withRetry(() => this.client.del(key));
     }
+  }
+
+  // ---------- 影片评论（按影片聚合，全站共享） ----------
+  private commentKey(source: string, id: string) {
+    return `cmt:video:${source}+${id}`;
+  }
+
+  async getVideoComments(
+    source: string,
+    id: string
+  ): Promise<VideoComment[]> {
+    const val = await this.withRetry(() =>
+      this.client.get(this.commentKey(source, id))
+    );
+    if (!val) return [];
+    try {
+      const list = JSON.parse(val) as VideoComment[];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async addVideoComment(comment: VideoComment): Promise<void> {
+    const key = this.commentKey(comment.source, comment.id);
+    const list = await this.getVideoComments(comment.source, comment.id);
+    list.push(comment);
+    // 单部影片最多保留 500 条，超出丢最旧的
+    const trimmed = list.slice(-500);
+    await this.withRetry(() =>
+      this.client.set(key, JSON.stringify(trimmed))
+    );
+  }
+
+  async deleteVideoComment(
+    source: string,
+    id: string,
+    cid: string
+  ): Promise<void> {
+    const key = this.commentKey(source, id);
+    const list = await this.getVideoComments(source, id);
+    const next = list.filter((item) => item.cid !== cid);
+    if (next.length === list.length) return;
+    if (next.length === 0) {
+      await this.withRetry(() => this.client.del(key));
+      return;
+    }
+    await this.withRetry(() => this.client.set(key, JSON.stringify(next)));
   }
 
   // ---------- 获取全部用户 ----------

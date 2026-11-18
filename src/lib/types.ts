@@ -175,6 +175,17 @@ export interface TodayUpdatedRecord {
   items: TodayUpdatedItem[];
 }
 
+// 影片评论（按 source+id 存储，带集数可选）
+export interface VideoComment {
+  cid: string; // 评论 ID
+  source: string;
+  id: string;
+  episode?: number; // 发表时所在的集数（可选）
+  username: string; // 发表人
+  content: string;
+  created_at: number; // 时间戳
+}
+
 // 弹幕数据结构
 export interface DanmakuItem {
   time: number; // 弹幕出现时间（秒）

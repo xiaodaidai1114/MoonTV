@@ -11,6 +11,7 @@ import {
   PlayRecord,
   SkipConfig,
   TodayUpdatedRecord,
+  VideoComment,
 } from './types';
 import { UpstashRedisStorage } from './upstash.db';
 
@@ -286,6 +287,42 @@ export class DbManager {
     if (typeof (this.storage as any).setTodayUpdated === 'function') {
       await (this.storage as any).setTodayUpdated(userName, record);
     }
+  }
+
+  // ---------- 影片评论 ----------
+  /** 当前存储后端是否支持影片评论（Redis 系支持，localstorage/D1 暂不支持） */
+  supportsComments(): boolean {
+    return typeof (this.storage as any).getVideoComments === 'function';
+  }
+
+  async getVideoComments(
+    source: string,
+    id: string
+  ): Promise<VideoComment[]> {
+    if (typeof (this.storage as any).getVideoComments === 'function') {
+      return (this.storage as any).getVideoComments(source, id);
+    }
+    return [];
+  }
+
+  async addVideoComment(comment: VideoComment): Promise<void> {
+    if (typeof (this.storage as any).addVideoComment === 'function') {
+      await (this.storage as any).addVideoComment(comment);
+      return;
+    }
+    throw new Error('当前存储方式不支持评论');
+  }
+
+  async deleteVideoComment(
+    source: string,
+    id: string,
+    cid: string
+  ): Promise<void> {
+    if (typeof (this.storage as any).deleteVideoComment === 'function') {
+      await (this.storage as any).deleteVideoComment(source, id, cid);
+      return;
+    }
+    throw new Error('当前存储方式不支持评论');
   }
 
   // ---------- 数据清理 ----------

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import { Cat, Clapperboard, Clover, Compass, Download, Film, History, Home, Search, Sparkles, Trash2, Trophy, Tv, X, Flame } from 'lucide-react';
+import { Cat, ChevronDown, Clapperboard, Clover, Compass, Download, Film, Flame,History, Home, Library, Search, Sparkles, Trash2, Trophy, Tv, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -132,13 +132,20 @@ const TopNav = ({ activePath }: TopNavProps) => {
     };
   }, []);
 
-  const menuItemsAll = [
+  // 片库下拉：把电影/剧集/短剧/纪录片/动漫/综艺收进一个入口，减少导航栏目
+  const libraryItemsAll = [
     { icon: Film, label: '电影', href: '/douban?type=movie' },
     { icon: Tv, label: '剧集', href: '/douban?type=tv' },
     { icon: Clapperboard, label: '短剧', href: '/short-drama' },
     { icon: Compass, label: '纪录片', href: '/douban?type=doc' },
     { icon: Cat, label: '动漫', href: '/douban?type=anime' },
     { icon: Clover, label: '综艺', href: '/douban?type=show' },
+  ];
+  const [showLibraryMenu, setShowLibraryMenu] = useState(false);
+  const libraryMenuRef = useRef<HTMLDivElement>(null);
+  const libraryActive = active.startsWith('/douban') || active.startsWith('/short-drama');
+
+  const menuItemsAll = [
     { icon: Sparkles, label: 'AI找剧', href: '/ai' },
     { icon: Trophy, label: '榜单', href: '/ranking' },
     { icon: Flame, label: '专区', href: '/adult' },
@@ -146,6 +153,21 @@ const TopNav = ({ activePath }: TopNavProps) => {
   const menuItems = menuItemsAll.filter(
     (item) => item.href !== '/adult' || showAdultZone
   );
+
+  // 点击片库以外区域时收起下拉
+  useEffect(() => {
+    if (!showLibraryMenu) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        libraryMenuRef.current &&
+        !libraryMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowLibraryMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [showLibraryMenu]);
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchQuery.trim();
@@ -408,6 +430,65 @@ const TopNav = ({ activePath }: TopNavProps) => {
                 <span className='top-nav__text'>首页</span>
               </Link>
             )}
+            {isClient &&
+              !simpleMode && (
+                <div
+                  ref={libraryMenuRef}
+                  className='relative'
+                  onMouseEnter={() => setShowLibraryMenu(true)}
+                  onMouseLeave={() => setShowLibraryMenu(false)}
+                >
+                  <button
+                    onClick={() => setShowLibraryMenu((value) => !value)}
+                    data-active={libraryActive}
+                    className='top-nav__link group flex items-center gap-2 rounded-lg text-gray-700 hover:bg-gray-100/50 hover:text-green-600 data-[active=true]:bg-green-500/10 data-[active=true]:text-green-600 font-medium transition-colors duration-200 dark:text-gray-300 dark:hover:text-green-400 dark:hover:bg-gray-700/50 dark:data-[active=true]:bg-green-500/10 dark:data-[active=true]:text-green-400'
+                  >
+                    <Library className='top-nav__icon' />
+                    <span className='top-nav__text'>片库</span>
+                    <ChevronDown
+                      className={`top-nav__icon transition-transform duration-200 ${
+                        showLibraryMenu ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  {showLibraryMenu && (
+                    <div className='absolute left-0 top-full z-[700] mt-1 w-44 overflow-hidden rounded-xl border border-gray-100 bg-white py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-800'>
+                      {libraryItemsAll.map((item) => {
+                        const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
+                        const decodedActive = decodeURIComponent(active);
+                        const decodedHref = decodeURIComponent(item.href);
+                        const isActive =
+                          decodedActive === decodedHref ||
+                          (decodedActive.startsWith('/douban') &&
+                            !!typeMatch &&
+                            decodedActive.includes(`type=${typeMatch}`)) ||
+                          (item.href === '/short-drama' &&
+                            decodedActive.startsWith('/short-drama'));
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.label}
+                            href={item.href}
+                            onClick={() => {
+                              if (!isActive) startLoading();
+                              setActive(item.href);
+                              setShowLibraryMenu(false);
+                            }}
+                            className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                              isActive
+                                ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-green-600 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-green-400'
+                            }`}
+                          >
+                            <Icon className='h-4 w-4' />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             {isClient &&
               !simpleMode &&
               menuItems.map((item) => {
