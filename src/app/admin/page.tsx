@@ -89,6 +89,8 @@ interface DataSource {
   detail?: string;
   disabled?: boolean;
   from: 'config' | 'custom';
+  adult?: boolean;
+  shortDrama?: boolean;
 }
 
 // 自定义分类数据类型
@@ -1598,8 +1600,33 @@ const VideoSourceConfig = ({
     }
   };
 
-  const handleBatchDisable = async () => {
+  // 批量标记 / 取消短剧源（短剧频道优先查询这些源）
+  const handleBatchSetShortDrama = async (shortDrama: boolean) => {
     if (selectedSources.size === 0) return;
+    const { isConfirmed } = await Swal.fire({
+      title: shortDrama ? '标记为短剧源' : '取消短剧源标记',
+      text: `将对选中的 ${selectedSources.size} 个源${
+        shortDrama ? '标记为短剧源（短剧频道优先查询）' : '取消短剧标记'
+      }`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    });
+    if (!isConfirmed) return;
+    try {
+      await callSourceApi({
+        action: 'batchSetShortDrama',
+        keys: Array.from(selectedSources),
+        shortDrama,
+      });
+      await refreshConfig();
+    } catch (err) {
+      console.error('设置短剧源失败', err);
+    }
+  };
+
+  const handleBatchDisable = async () => {    if (selectedSources.size === 0) return;
     
     const { isConfirmed } = await Swal.fire({
       title: '确认批量禁用',
@@ -1841,6 +1868,20 @@ const VideoSourceConfig = ({
                 className='px-3 py-1 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center gap-1'
               >
                 取消成人
+              </button>
+              <button
+                onClick={() => handleBatchSetShortDrama(true)}
+                disabled={selectedSources.size === 0}
+                className='px-3 py-1 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center gap-1'
+              >
+                标记短剧
+              </button>
+              <button
+                onClick={() => handleBatchSetShortDrama(false)}
+                disabled={selectedSources.size === 0}
+                className='px-3 py-1 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-colors flex items-center gap-1'
+              >
+                取消短剧
               </button>
               <button
                 onClick={handleBatchDelete}

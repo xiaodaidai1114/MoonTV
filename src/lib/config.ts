@@ -8,6 +8,8 @@ import runtimeConfig from './runtime';
 
 export interface ApiSite {
   adult?: boolean;
+  /** 标记为短剧源：短剧频道优先查询这些源 */
+  shortDrama?: boolean;
   key: string;
   api: string;
   name: string;
@@ -837,16 +839,16 @@ export async function getAvailableApiSites(username?: string): Promise<ApiSite[]
   const config = await getConfig();
   const all = config.SourceConfig.filter((s) => !s.disabled);
   if (!username || !config.UserConfig?.Groups || config.UserConfig.Groups.length === 0) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true, shortDrama: s.shortDrama === true }));
   }
   const user = config.UserConfig.Users.find((u) => u.username === username);
   const groupName = user?.group;
   if (!groupName) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true, shortDrama: s.shortDrama === true }));
   }
   const group = config.UserConfig.Groups.find((g) => g.name === groupName);
   if (!group) {
-    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true }));
+    return all.map((s) => ({ key: s.key, name: s.name, api: s.api, detail: s.detail, adult: s.adult === true, shortDrama: s.shortDrama === true }));
   }
   const allowed = new Set(group.sourceKeys);
   const filtered = all.filter((s) => allowed.has(s.key));

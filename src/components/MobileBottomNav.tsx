@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Cat, Clapperboard, Clover, Compass, Film, Home, Search, Trophy, Tv, Flame } from 'lucide-react';
+import { Cat, Clapperboard, Clover, Compass, Film, Home, Search, Sparkles, Trophy, Tv, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useState } from 'react';
@@ -43,7 +43,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
     {
       icon: Clapperboard,
       label: '短剧',
-      href: '/douban?type=short',
+      href: '/short-drama',
     },
     {
       icon: Compass,
@@ -59,6 +59,11 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
       icon: Clover,
       label: '综艺',
       href: '/douban?type=show',
+    },
+    {
+      icon: Sparkles,
+      label: 'AI找剧',
+      href: '/ai',
     },
     {
       icon: Trophy,

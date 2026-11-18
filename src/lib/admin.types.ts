@@ -55,6 +55,8 @@ export interface AdminConfig {
     disabled?: boolean;
     /** 标记为成人源：普通搜索跳过，只出现在成人专区 */
     adult?: boolean;
+    /** 标记为短剧源：短剧频道优先查询这些源 */
+    shortDrama?: boolean;
   }[];
   CustomCategories: {
     name?: string;

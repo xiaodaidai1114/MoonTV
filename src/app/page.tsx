@@ -32,6 +32,7 @@ import { DoubanItem } from '@/lib/types';
 
 import CapsuleSwitch from '@/components/CapsuleSwitch';
 import ContinueWatching from '@/components/ContinueWatching';
+import HomeDiscovery from '@/components/HomeDiscovery';
 import { useNavigationLoading } from '@/components/NavigationLoadingProvider';
 import PageLayout from '@/components/PageLayout';
 import ScrollableRow from '@/components/ScrollableRow';
@@ -1002,6 +1003,9 @@ function HomeClient() {
           ) : (
             // 首页视图
             <>
+              {/* 搜索主视觉 + 大家都在看 / 新番推荐 / 短剧热播 */}
+              {isClient && !simpleMode && <HomeDiscovery />}
+
               {/* 继续观看 - 组件内部已处理简洁模式 */}
               <ContinueWatching />
 

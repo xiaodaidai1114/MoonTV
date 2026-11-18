@@ -10,7 +10,7 @@ import { IStorage } from '@/lib/types';
 export const runtime = 'edge';
 
 // 支持的操作类型
-type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort' | 'batchDisable' | 'batchEnable' | 'batchDelete' | 'setAdult' | 'batchSetAdult';
+type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort' | 'batchDisable' | 'batchEnable' | 'batchDelete' | 'setAdult' | 'batchSetAdult' | 'setShortDrama' | 'batchSetShortDrama';
 
 interface BaseBody {
   action?: Action;
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const username = authInfo.username;
 
     // 基础校验
-    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort', 'batchDisable', 'batchEnable', 'batchDelete', 'setAdult', 'batchSetAdult'];
+    const ACTIONS: Action[] = ['add', 'disable', 'enable', 'delete', 'sort', 'batchDisable', 'batchEnable', 'batchDelete', 'setAdult', 'batchSetAdult', 'setShortDrama', 'batchSetShortDrama'];
     if (!username || !action || !ACTIONS.includes(action)) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
@@ -80,6 +80,34 @@ export async function POST(request: NextRequest) {
         }
         for (const entry of adminConfig.SourceConfig) {
           if (keys.includes(entry.key)) entry.adult = adult;
+        }
+        break;
+      }
+      case 'setShortDrama': {
+        const { key: sourceKey, shortDrama } = body as {
+          key?: string;
+          shortDrama?: boolean;
+        };
+        if (!sourceKey || typeof shortDrama !== 'boolean') {
+          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+        }
+        const entry = adminConfig.SourceConfig.find((s) => s.key === sourceKey);
+        if (!entry) {
+          return NextResponse.json({ error: '源不存在' }, { status: 404 });
+        }
+        entry.shortDrama = shortDrama;
+        break;
+      }
+      case 'batchSetShortDrama': {
+        const { keys, shortDrama } = body as {
+          keys?: string[];
+          shortDrama?: boolean;
+        };
+        if (!Array.isArray(keys) || typeof shortDrama !== 'boolean') {
+          return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+        }
+        for (const entry of adminConfig.SourceConfig) {
+          if (keys.includes(entry.key)) entry.shortDrama = shortDrama;
         }
         break;
       }

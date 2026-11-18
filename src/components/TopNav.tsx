@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import { Cat, Clapperboard, Clover, Compass, Download, Film, History, Home, Search, Trash2, Trophy, Tv, X, Flame } from 'lucide-react';
+import { Cat, Clapperboard, Clover, Compass, Download, Film, History, Home, Search, Sparkles, Trash2, Trophy, Tv, X, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -135,10 +135,11 @@ const TopNav = ({ activePath }: TopNavProps) => {
   const menuItemsAll = [
     { icon: Film, label: '电影', href: '/douban?type=movie' },
     { icon: Tv, label: '剧集', href: '/douban?type=tv' },
-    { icon: Clapperboard, label: '短剧', href: '/douban?type=short' },
+    { icon: Clapperboard, label: '短剧', href: '/short-drama' },
     { icon: Compass, label: '纪录片', href: '/douban?type=doc' },
     { icon: Cat, label: '动漫', href: '/douban?type=anime' },
     { icon: Clover, label: '综艺', href: '/douban?type=show' },
+    { icon: Sparkles, label: 'AI找剧', href: '/ai' },
     { icon: Trophy, label: '榜单', href: '/ranking' },
     { icon: Flame, label: '专区', href: '/adult' },
   ];
