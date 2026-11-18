@@ -1173,9 +1173,9 @@ function HomeClient() {
                                     from='douban'
                                     title={anime.name_cn || anime.name || ''}
                                     poster={
-                                      anime.images?.large ||
                                       anime.images?.common ||
                                       anime.images?.medium ||
+                                      anime.images?.large ||
                                       anime.images?.small ||
                                       anime.images?.grid ||
                                       ''

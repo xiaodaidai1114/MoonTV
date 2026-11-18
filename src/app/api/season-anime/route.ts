@@ -58,10 +58,12 @@ function seasonLabel(date: Date): string {
 
 function pickPoster(item: BangumiCalendarItem): string {
   const images = item.images || {};
+  // 优先小尺寸封面（common 约 6KB）：卡片最大 176px 宽，够用且跨境加载快
+  // 大图（large）单张可达 170KB+，走代理时明显拖慢首屏
   return (
-    images.large ||
     images.common ||
     images.medium ||
+    images.large ||
     images.small ||
     images.grid ||
     ''

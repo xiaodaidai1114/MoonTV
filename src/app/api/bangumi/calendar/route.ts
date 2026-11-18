@@ -4,6 +4,10 @@ import { getConfig } from '@/lib/config';
 
 export const runtime = 'edge';
 
+// 必须动态执行：无参 GET 会被 Next 静态化，构建期抓不到 Bangumi 的机器
+// 会把空数组永久烤进镜像（京东机房直连 api.bgm.tv 不通，只能运行时走反代）
+export const dynamic = 'force-dynamic';
+
 interface BangumiCalendarItem {
   id: number;
   name: string;
