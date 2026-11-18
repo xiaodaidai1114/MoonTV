@@ -269,7 +269,9 @@ export default function PlayClient() {
             </div>
 
             {/* 选集和换源：手机横向滑，桌面在右侧 */}
-            <div className='order-3 h-[148px] border-t border-black/5 md:col-start-4 md:row-start-1 md:h-[420px] md:overflow-hidden md:border-l md:border-t-0 lg:h-[520px] xl:h-[620px] dark:border-white/10'>
+            {/* 手机端 148px 会把集数按钮拦腰截断（tab+页码行+按钮行实际需要 ~190px），
+                视觉上像被下面的评论区挡住，因此加高到 210px */}
+            <div className='order-3 h-[210px] border-t border-black/5 md:col-start-4 md:row-start-1 md:h-[420px] md:overflow-hidden md:border-l md:border-t-0 lg:h-[520px] xl:h-[620px] dark:border-white/10'>
               <EpisodeSelector
                 totalEpisodes={totalEpisodes}
                 episodes_titles={detail?.episodes_titles || []}

@@ -36,7 +36,7 @@ export function processImageUrl(originalUrl: string): string {
 
   // Bangumi 封面统一走本站 /bgm-img，避免浏览器直连 lain.bgm.tv 被限速或拿到空图
   const bangumiPath = normalizedUrl.match(
-    /^(?:https?:)?\/\/(?:lain\.bgm\.tv|[^/]+)(?:\/bgm-img)?(\/pic\/cover\/[^?#]+)/i
+    /^(?:https?:)?\/\/lain\.bgm\.tv(?:\/bgm-img)?(\/pic\/cover\/[^?#]+)/i
   );
   if (bangumiPath) {
     return `/bgm-img${bangumiPath[1]}`;
