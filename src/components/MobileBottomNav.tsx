@@ -120,7 +120,8 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   };
 
   return (
-    <nav
+    <>
+      <nav
       className='md:hidden fixed left-0 right-0 z-[600] bg-white/90 backdrop-blur-xl border-t border-gray-200/50 overflow-hidden dark:bg-gray-900/80 dark:border-gray-700/50'
       style={{
         /* 紧贴视口底部，同时在内部留出安全区高度 */
@@ -220,11 +221,13 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
           );
         })}
       </ul>
+      </nav>
 
-      {/* 片库选择弹层 */}
+      {/* 片库选择弹层：必须挂在 nav 外面——nav 的 backdrop-blur + overflow-hidden
+          会把 fixed 弹层裁剪成导航条大小，导致点击片库后出现白色小块、导航被盖住 */}
       {showLibrarySheet && (
         <div
-          className='fixed inset-0 z-[650] bg-black/40'
+          className='md:hidden fixed inset-0 z-[1000] bg-black/40'
           onClick={() => setShowLibrarySheet(false)}
         >
           <div
@@ -280,7 +283,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
           </div>
         </div>
       )}
-    </nav>
+    </>
   );
 };
 
