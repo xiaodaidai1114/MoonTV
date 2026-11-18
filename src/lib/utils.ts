@@ -57,6 +57,18 @@ export function processImageUrl(originalUrl: string): string {
     return `/api/image-proxy?url=${encodeURIComponent(normalizedUrl)}`;
   }
 
+  // 部分图床的域名/端口在家宽网络下直连不通（如 360资源 imgzy360.com:7788
+  // 非标准端口被运营商拦截），但云服务器侧可达——统一走本站图片代理，
+  // 由服务器代拉并带半年浏览器缓存。遇到新的失效图床往列表里补即可。
+  const SERVER_PROXIED_IMAGE_HOSTS = ['imgzy360.com'];
+  if (
+    SERVER_PROXIED_IMAGE_HOSTS.some((host) =>
+      normalizedUrl.includes(host)
+    )
+  ) {
+    return `/api/image-proxy?url=${encodeURIComponent(normalizedUrl)}`;
+  }
+
   // 仅处理豆瓣图片代理
   if (!normalizedUrl.includes('doubanio.com')) {
     return normalizedUrl;
