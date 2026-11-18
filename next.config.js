@@ -22,15 +22,15 @@ const nextConfig = {
           return [
             {
               source: '/bgm-relay/:path*',
-              destination: 'http://127.0.0.1:9322/bgm-a7x92k/:path*',
+              destination: 'http://172.17.0.1:9322/bgm-a7x92k/:path*',
             },
             {
               source: '/bgm-img/:path*',
-              destination: 'http://127.0.0.1:9322/bgmimg-a7x92k/:path*',
+              destination: 'http://172.17.0.1:9322/bgmimg-a7x92k/:path*',
             },
             {
               source: '/danmu-relay/:path*',
-              destination: 'http://127.0.0.1:9321/:path*',
+              destination: 'http://172.17.0.1:9321/:path*',
             },
           ];
         },
