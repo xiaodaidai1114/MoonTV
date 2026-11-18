@@ -487,7 +487,7 @@ interface DoubanCollectionItem {
   rank?: number;
 }
 
-interface DoubanCollectionResponse {
+interface _DoubanCollectionResponse {
   total: number;
   subject_collection_items: DoubanCollectionItem[];
 }
