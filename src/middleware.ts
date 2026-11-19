@@ -136,6 +136,8 @@ function shouldSkipAuth(pathname: string): boolean {
     '/bgm-relay/',
     '/bgm-img/',
     '/danmu-relay/',
+    // 演员搜索跨机中转：另一台部署机本地源不可达时经此代查公开片源
+    '/api/search/actor-relay',
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));
