@@ -299,6 +299,10 @@ function SearchPageClient() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // 演员匹配：搜索词命中某些源站的演员字段时，额外展示「这个演员的剧」
+  const [actorResults, setActorResults] = useState<SearchResult[]>([]);
+  const [actorName, setActorName] = useState('');
+
   const fetchSearchResults = async (query: string) => {
     abortControllerRef.current?.abort();
     const controller = new AbortController();
@@ -308,6 +312,8 @@ function SearchPageClient() {
       setIsLoading(true);
       setSearchResults([]);
       setFailedSources([]);
+      setActorResults([]);
+      setActorName('');
       setShowResults(true);
 
       const params = new URLSearchParams({ q: query.trim() });
@@ -329,6 +335,25 @@ function SearchPageClient() {
       if (!response.ok)
         throw new Error(`Search request failed: ${response.status}`);
       if (controller.signal.aborted) return;
+
+      // 演员名搜索与片名搜索并行：有命中时在结果区顶部展示
+      void (async () => {
+        try {
+          const actorRes = await fetch(
+            `/api/search/actor?q=${encodeURIComponent(query.trim())}&limit=24`,
+            { signal: controller.signal }
+          );
+          if (!actorRes.ok || controller.signal.aborted) return;
+          const data = await actorRes.json();
+          if (controller.signal.aborted) return;
+          if (Array.isArray(data?.results) && data.results.length > 0) {
+            setActorResults(data.results);
+            setActorName(data.actor || query.trim());
+          }
+        } catch {
+          // 演员匹配失败不影响主搜索
+        }
+      })();
 
       if (!streamEnabled) {
         const json = await response.json();
@@ -810,6 +835,40 @@ function SearchPageClient() {
                       { value: 'episodes', label: '按集数' },
                     ]}
                   />
+                </div>
+              )}
+
+              {/* 演员匹配：搜索词命中片源演员字段时，顶部展示该演员的作品 */}
+              {!isLoading && actorResults.length > 0 && (
+                <div className='mb-8 rounded-2xl border border-green-500/20 bg-green-500/5 p-4'>
+                  <div className='mb-3 flex items-center gap-2'>
+                    <span className='text-sm font-semibold text-gray-800 dark:text-gray-200'>
+                      🎭 演员「{actorName}」的作品
+                    </span>
+                    <span className='text-xs text-gray-400'>
+                      共 {actorResults.length} 部 · 点卡片直接播放
+                    </span>
+                  </div>
+                  <div className='flex gap-x-4 overflow-x-auto scrollbar-hide pb-2'>
+                    {actorResults.map((item) => (
+                      <div
+                        key={`${item.source}-${item.id}`}
+                        className='w-28 min-w-[112px] sm:w-36 sm:min-w-[144px]'
+                      >
+                        <VideoCard
+                          from='search'
+                          id={item.id}
+                          source={item.source}
+                          source_name={item.source_name}
+                          title={item.title || ''}
+                          poster={item.poster}
+                          year={item.year && item.year !== 'unknown' ? item.year : ''}
+                          episodes={item.episodes ? item.episodes.length : 0}
+                          type={(item.episodes?.length || 0) > 1 ? 'tv' : ''}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

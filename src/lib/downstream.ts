@@ -14,6 +14,8 @@ interface ApiSearchItem {
   vod_content?: string;
   vod_douban_id?: number;
   type_name?: string;
+  vod_actor?: string;
+  vod_director?: string;
 }
 
 /** 上游搜索接口的响应结构 */
@@ -153,6 +155,10 @@ function mapItemToResult(
       typeof raw.vod_content === 'string' ? raw.vod_content : ''
     ),
     type_name: typeof raw.type_name === 'string' ? raw.type_name : undefined,
+    actors:
+      [raw.vod_actor, raw.vod_director]
+        .filter((value) => typeof value === 'string' && value.trim())
+        .join(',') || undefined,
     douban_id:
       raw.vod_douban_id === undefined || raw.vod_douban_id === null
         ? undefined

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
-import { Cat, ChevronDown, Clapperboard, Clover, Compass, Download, Film, Flame,History, Home, Library, Search, Sparkles, Trash2, Trophy, Tv, X } from 'lucide-react';
+import { Cat, ChevronDown, Clapperboard, Clover, Compass, Download, Film, Flame, History, Home, Hourglass, Library, Search, Sparkles, Trash2, Trophy, Tv, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -140,6 +140,7 @@ const TopNav = ({ activePath }: TopNavProps) => {
     { icon: Compass, label: '纪录片', href: '/douban?type=doc' },
     { icon: Cat, label: '动漫', href: '/douban?type=anime' },
     { icon: Clover, label: '综艺', href: '/douban?type=show' },
+    { icon: Hourglass, label: '怀旧', href: '/nostalgia' },
   ];
   const [showLibraryMenu, setShowLibraryMenu] = useState(false);
   const libraryMenuRef = useRef<HTMLDivElement>(null);

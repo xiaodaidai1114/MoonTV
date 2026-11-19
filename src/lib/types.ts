@@ -128,6 +128,8 @@ export interface SearchResult {
   year: string;
   desc?: string;
   type_name?: string;
+  /** 主演 + 导演（源站返回的逗号分隔名单），用于演员名搜索匹配 */
+  actors?: string;
   douban_id?: number;
 }
 

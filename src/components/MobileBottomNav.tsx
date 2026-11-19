@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Cat, Clapperboard, Clover, Compass, Film, Flame, Home, Library, Search, Sparkles, Trophy, Tv, X } from 'lucide-react';
+import { Cat, Clapperboard, Clover, Compass, Film, Flame, Home, Hourglass, Library, Search, Sparkles, Trophy, Tv, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { memo, useEffect, useState } from 'react';
@@ -35,6 +35,7 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
     { icon: Compass, label: '纪录片', href: '/douban?type=doc' },
     { icon: Cat, label: '动漫', href: '/douban?type=anime' },
     { icon: Clover, label: '综艺', href: '/douban?type=show' },
+    { icon: Hourglass, label: '怀旧', href: '/nostalgia' },
   ]);
   const [showLibrarySheet, setShowLibrarySheet] = useState(false);
 
