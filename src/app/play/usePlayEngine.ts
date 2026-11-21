@@ -408,6 +408,7 @@ export function usePlayEngine() {
   // 搜索所需信息
   const [searchTitle] = useState(searchParams.get('stitle') || '');
   const [searchType] = useState(searchParams.get('stype') || '');
+  const adultZone = searchParams.get('adult') === '1';
 
   // 集数相关
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(0);
@@ -1190,7 +1191,7 @@ export function usePlayEngine() {
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(
             query.trim()
-          )}&timeout=${timeoutSeconds}&stream=1&concurrency=${searchConcurrency}`
+          )}&timeout=${timeoutSeconds}&stream=1&concurrency=${searchConcurrency}${adultZone ? '&adult=1' : ''}`
         );
         if (!response.ok) throw new Error('搜索失败');
 
@@ -1222,9 +1223,10 @@ export function usePlayEngine() {
                   const filteredResults: SearchResult[] =
                     data.pageResults.filter((r: SearchResult) => {
                       const titleMatch = matchesFullSearchTitle(r.title, query);
-                      const yearMatch = targetYear
-                        ? r.year.toLowerCase() === targetYear.toLowerCase()
-                        : true;
+                      const yearMatch =
+                        adultZone || !targetYear || !r.year
+                          ? true
+                          : r.year.toLowerCase() === targetYear.toLowerCase();
                       const typeMatch = searchType
                         ? (searchType === 'tv' && r.episodes.length > 1) ||
                           (searchType === 'movie' && r.episodes.length === 1)
@@ -1337,6 +1339,30 @@ export function usePlayEngine() {
       let detailData: SearchResult | null = null;
       let allResults: SearchResult[] = [];
       let hasInitialized = false; // 标记是否已经初始化过播放数据
+
+      // 卡片已经带了源和 id 时，直接拉这一条详情。
+      // 成人专区的片子不在普通搜索里，再搜一遍会得到「未找到匹配结果」。
+      if (currentSource && currentId) {
+        try {
+          const detailRes = await fetch(
+            `/api/detail?source=${encodeURIComponent(currentSource)}&id=${encodeURIComponent(currentId)}`
+          );
+          if (detailRes.ok) {
+            const detail = (await detailRes.json()) as SearchResult;
+            if (detail && detail.title && Array.isArray(detail.episodes)) {
+              detailData = detail;
+              allResults = [detail];
+              setAvailableSources([detail]);
+              if (!enablePreferBestSourceFromStorage || adultZone) {
+                initDetail(detail);
+                hasInitialized = true;
+              }
+            }
+          }
+        } catch {
+          // 详情失败再走下面的搜索
+        }
+      }
 
       await fetchSourcesData(videoTitle || searchTitle, (newResults) => {
         allResults = sortSourcesByPriority([...allResults, ...newResults]);

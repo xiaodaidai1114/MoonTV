@@ -4,34 +4,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { adultKeywords } from '@/lib/yellow';
+import { adultCategories } from '@/lib/yellow';
 
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
 
 import type { SearchResult } from '@/lib/types';
 
-/** 关键词对应的展示文案（不传就用关键词本身） */
-const KEYWORD_LABELS: Record<string, string> = {
-  伦理: '伦理片',
-  福利: '福利',
-  自拍: '自拍',
-  偷拍: '偷拍',
-  无码: '无码',
-  里番: '里番动漫',
-  三级: '三级片',
-  主播: '主播',
-  写真: '写真',
-  麻豆: '麻豆传媒',
-};
-
 interface AdultResponse {
   results?: SearchResult[];
-  failedSources?: { name: string; error: string }[];
+  categories?: { id: string; label: string }[];
 }
 
 export default function AdultZonePage() {
-  const [keyword, setKeyword] = useState(adultKeywords[0]);
+  const [keyword, setKeyword] = useState(adultCategories[0].id);
+  const [categories, setCategories] = useState(adultCategories.map(({ id, label }) => ({ id, label })));
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,39 +95,13 @@ export default function AdultZonePage() {
       setLoading(false);
     };
     try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(kw)}&adult=1&stream=1&timeout=6&concurrency=10`
-      );
+      const res = await fetch(`/api/adult/feed?cat=${encodeURIComponent(kw)}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
-      if (!res.body) {
-        const data = (await res.json()) as AdultResponse;
-        pushItems(data.results || []);
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let done = false;
-      while (!done) {
-        const chunk = await reader.read();
-        done = chunk.done;
-        if (!chunk.value) continue;
-        buffer += decoder.decode(chunk.value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const json = JSON.parse(line) as AdultResponse & {
-              pageResults?: SearchResult[];
-            };
-            if (json.pageResults?.length) pushItems(json.pageResults);
-            if (json.results?.length) pushItems(json.results);
-          } catch {
-            // 半行忽略
-          }
-        }
-      }
+      const data = (await res.json()) as AdultResponse;
+      if (data.categories?.length) setCategories(data.categories);
+      pushItems(data.results || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -233,17 +194,17 @@ export default function AdultZonePage() {
 
         {/* 关键词切换 */}
         <div className='mb-6 flex flex-wrap gap-2'>
-          {adultKeywords.map((kw) => (
+          {categories.map((item) => (
             <button
-              key={kw}
-              onClick={() => setKeyword(kw)}
+              key={item.id}
+              onClick={() => setKeyword(item.id)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                keyword === kw
+                keyword === item.id
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-200/70 text-gray-700 hover:bg-gray-300/70 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-gray-600/60'
               }`}
             >
-              {KEYWORD_LABELS[kw] || kw}
+              {item.label}
             </button>
           ))}
         </div>
@@ -256,7 +217,7 @@ export default function AdultZonePage() {
           <div className='py-16 text-center'>
             <div className='mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-green-500' />
             <p className='mt-3 text-sm text-gray-500 dark:text-gray-400'>
-              正在搜索「{KEYWORD_LABELS[keyword] || keyword}」…
+              正在加载「{categories.find((item) => item.id === keyword)?.label || ''}」…
             </p>
           </div>
         ) : total === 0 ? (
@@ -282,6 +243,7 @@ export default function AdultZonePage() {
                     year={item.year}
                     query={item.title || ''}
                     from='search'
+                    adult
                   />
                 </div>
               ))}

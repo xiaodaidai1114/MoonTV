@@ -57,6 +57,8 @@ interface VideoCardProps {
   items?: SearchResult[];
   type?: string;
   isBangumi?: boolean;
+  /** 来自成人专区：播放页要带上成人源，否则会搜不到 */
+  adult?: boolean;
 }
 
 export default function VideoCard({
@@ -78,6 +80,7 @@ export default function VideoCard({
   items,
   type = '',
   isBangumi = false,
+  adult = false,
 }: VideoCardProps) {
   const router = useRouter();
   const { startLoading } = useNavigationLoading();
@@ -366,6 +369,7 @@ export default function VideoCard({
       params.set('source', actualSource);
       params.set('id', actualId);
     }
+    if (adult) params.set('adult', '1');
     params.set('title', actualTitle.trim());
     if (sanitizedYear) params.set('year', sanitizedYear);
     if (actualSearchType) params.set('stype', actualSearchType);
@@ -391,6 +395,7 @@ export default function VideoCard({
     sanitizedQuery,
     actualSearchType,
     currentEpisode,
+    adult,
   ]);
 
   const handleClick = useCallback(() => {

@@ -58,19 +58,76 @@ export const yellowWords = [
   '欧美成人',
 ];
 
-/** 成人专区默认关键词（每个关键词对应一次多源搜索） */
-export const adultKeywords = [
-  '伦理',
-  '福利',
-  '自拍',
-  '偷拍',
-  '无码',
-  '里番',
-  '三级',
-  '主播',
-  '写真',
-  '麻豆',
-];
+/**
+ * 成人专区栏目。词表来自星夜、乐播、森林、玉兔、滴滴、CK 的真实分类名，
+ * 用来对上各源的 type_name，而不是只靠一个宽泛关键词去搜标题。
+ */
+export const adultCategories: { id: string; label: string; words: string[] }[] =
+  [
+    {
+      id: 'domestic',
+      label: '国产自拍',
+      words: ['国产自拍', '国产视频', '国产色情', '国产精品', '国产专区', '自拍偷拍', '素人自拍', '探花'],
+    },
+    {
+      id: 'media',
+      label: '传媒',
+      words: ['麻豆', '传媒', '天美', '精东', '糖心', 'swag', '91制片'],
+    },
+    {
+      id: 'uncensored',
+      label: '无码',
+      words: ['无码', '日韩无码', '日本无码', '亚洲无码'],
+    },
+    {
+      id: 'censored',
+      label: '有码中字',
+      words: ['有码', '中文字幕', '日本有码'],
+    },
+    {
+      id: 'western',
+      label: '欧美',
+      words: ['欧美'],
+    },
+    {
+      id: 'ethics',
+      label: '伦理三级',
+      words: ['伦理', '三级'],
+    },
+    {
+      id: 'anime',
+      label: '成人动漫',
+      words: ['动漫', '卡通', '里番'],
+    },
+    {
+      id: 'live',
+      label: '主播',
+      words: ['主播'],
+    },
+    {
+      id: 'leak',
+      label: '偷拍网曝',
+      words: ['偷拍', '网曝', '吃瓜', '黑料'],
+    },
+    {
+      id: 'uniform',
+      label: '制服丝袜',
+      words: ['制服', '丝袜', '黑丝'],
+    },
+    {
+      id: 'wife',
+      label: '人妻熟女',
+      words: ['人妻', '熟女'],
+    },
+    {
+      id: 'photo',
+      label: '写真',
+      words: ['写真'],
+    },
+  ];
+
+/** 兼容旧引用 */
+export const adultKeywords = adultCategories.map((item) => item.id);
 
 /** 判断一条搜索结果的分类是否属于成人内容 */
 export function isYellowResult(result: {
