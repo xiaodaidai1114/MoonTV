@@ -95,20 +95,52 @@ export default function AdultZonePage() {
     setLoading(true);
     setError(null);
     setResults([]);
-    try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(kw)}&adult=1`
-      );
-      if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
-      const data = (await res.json()) as AdultResponse;
-      const seen = new Set<string>();
-      const list = (data.results || []).filter((item) => {
+    const seen = new Set<string>();
+    const pushItems = (items: SearchResult[]) => {
+      const fresh = items.filter((item) => {
         const key = `${item.source}|${item.id}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
-      setResults(list);
+      if (fresh.length === 0) return;
+      setResults((prev) => [...prev, ...fresh]);
+      setLoading(false);
+    };
+    try {
+      const res = await fetch(
+        `/api/search?q=${encodeURIComponent(kw)}&adult=1&stream=1&timeout=6&concurrency=10`
+      );
+      if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
+      if (!res.body) {
+        const data = (await res.json()) as AdultResponse;
+        pushItems(data.results || []);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let done = false;
+      while (!done) {
+        const chunk = await reader.read();
+        done = chunk.done;
+        if (!chunk.value) continue;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const json = JSON.parse(line) as AdultResponse & {
+              pageResults?: SearchResult[];
+            };
+            if (json.pageResults?.length) pushItems(json.pageResults);
+            if (json.results?.length) pushItems(json.results);
+          } catch {
+            // 半行忽略
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {

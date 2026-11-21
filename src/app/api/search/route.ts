@@ -38,8 +38,14 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get('q');
   const streamParam = searchParams.get('stream');
   const enableStream = streamParam ? streamParam !== '0' : false; // 无该参数关闭流式
+  const adultMode = searchParams.get('adult') === '1';
   const timeoutParam = searchParams.get('timeout');
-  const timeout = timeoutParam ? parseInt(timeoutParam, 10) * 1000 : undefined; // 转换为毫秒
+  // 成人专区默认 6 秒封顶，避免慢插件把整页拖到几十秒
+  const timeout = timeoutParam
+    ? parseInt(timeoutParam, 10) * 1000
+    : adultMode
+      ? 6000
+      : undefined;
 
   // 单次搜索同时查询的上游源数量，由前端搜索设置传入。
   // 服务端再做一次收敛，避免被构造请求放大到不受控的并发。
@@ -48,7 +54,6 @@ export async function GET(request: NextRequest) {
   );
 
   // 成人专区：只要命中成人分类的条目（普通搜索则相反，默认过滤掉）
-  const adultMode = searchParams.get('adult') === '1';
   if (adultMode) {
     const role = await getRequestRole(request);
     if (!canSeeAdultZone(role)) {
@@ -84,6 +89,13 @@ export async function GET(request: NextRequest) {
   apiSites = apiSites.filter((site) =>
     adultMode ? site.adult === true : site.adult !== true
   );
+  if (adultMode) {
+    // 采集站接口先返回，网页抓取类插件放后面，首屏不用等它们
+    apiSites = [...apiSites].sort((a, b) => {
+      const rank = (key: string) => (key.startsWith('hg-') ? 1 : 0);
+      return rank(a.key) - rank(b.key);
+    });
+  }
 
   // 如果指定了搜索源，只使用选中的搜索源
   const selectedSourcesParam = searchParams.get('sources');
