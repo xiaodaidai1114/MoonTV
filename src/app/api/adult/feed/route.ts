@@ -9,7 +9,21 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const classCache = new Map<string, { at: number; classes: { id: string; name: string }[] }>();
+const feedCache = new Map<string, { at: number; results: FeedItem[] }>();
 const CLASS_TTL_MS = 30 * 60 * 1000;
+const FEED_TTL_MS = 10 * 60 * 1000;
+const FEED_DEADLINE_MS = 1800;
+
+type FeedItem = {
+  id: string;
+  title: string;
+  poster: string;
+  year: string;
+  source: string;
+  source_name: string;
+  type_name: string;
+  episodes: string[];
+};
 
 async function loadClasses(api: string) {
   const cached = classCache.get(api);
@@ -45,18 +59,31 @@ export async function GET(request: NextRequest) {
     (site) => site.adult === true && !site.key.startsWith('hg-')
   );
 
-  const batches = await Promise.all(
-    sites.map(async (site) => {
+  const cached = feedCache.get(category.id);
+  if (cached && Date.now() - cached.at < FEED_TTL_MS) {
+    return NextResponse.json(
+      {
+        category,
+        categories: adultCategories.map(({ id, label }) => ({ id, label })),
+        results: cached.results,
+        cached: true,
+      },
+      { headers: { 'Cache-Control': 'private, max-age=60' } }
+    );
+  }
+
+  const bag: FeedItem[] = [];
+  const jobs = sites.map(async (site) => {
       try {
         const classes = await loadClasses(site.api);
         const matched = classes.filter((item: { id: string; name: string }) =>
           category.words.some((word) => item.name.toLowerCase().includes(word.toLowerCase()))
         );
         const lists = await Promise.all(
-          matched.slice(0, 3).map(async (item: { id: string; name: string }) => {
+          matched.slice(0, 1).map(async (item: { id: string; name: string }) => {
             const url = `${site.api}${site.api.includes('?') ? '&' : '?'}ac=videolist&t=${encodeURIComponent(item.id)}&pg=1`;
             const response = await fetch(url, {
-              signal: AbortSignal.timeout(6000),
+              signal: AbortSignal.timeout(2500),
               headers: { 'User-Agent': 'Mozilla/5.0' },
             });
             if (!response.ok) return [];
@@ -74,23 +101,44 @@ export async function GET(request: NextRequest) {
             })).filter((row: { id: string; title: string }) => row.id && row.title);
           })
         );
-        return lists.flat();
+        const items = lists.flat() as FeedItem[];
+        bag.push(...items);
+        return items;
       } catch {
         return [];
       }
-    })
-  );
+  });
+
+  await Promise.race([
+    Promise.all(jobs),
+    new Promise((resolve) => setTimeout(resolve, FEED_DEADLINE_MS)),
+  ]);
 
   const seen = new Set<string>();
-  const results = batches.flat().filter((item) => {
+  const results = bag.filter((item) => {
     const key = `${item.source}|${item.id}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
+  void Promise.all(jobs).then(() => {
+    const done = new Set<string>();
+    const full = bag.filter((item) => {
+      const key = `${item.source}|${item.id}`;
+      if (done.has(key)) return false;
+      done.add(key);
+      return true;
+    });
+    if (full.length > 0) feedCache.set(category.id, { at: Date.now(), results: full });
+  });
+
   return NextResponse.json(
-    { category, categories: adultCategories.map(({ id, label }) => ({ id, label })), results },
-    { headers: { 'Cache-Control': 'private, max-age=120' } }
+    {
+      category,
+      categories: adultCategories.map(({ id, label }) => ({ id, label })),
+      results,
+    },
+    { headers: { 'Cache-Control': 'private, max-age=30' } }
   );
 }

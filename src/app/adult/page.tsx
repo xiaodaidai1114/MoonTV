@@ -78,10 +78,18 @@ export default function AdultZonePage() {
     }
   };
 
+  const catalogCache = useMemo(() => new Map<string, SearchResult[]>(), []);
+
   const load = useCallback(async (kw: string) => {
-    setLoading(true);
+    const cached = catalogCache.get(kw);
     setError(null);
-    setResults([]);
+    if (cached) {
+      setResults(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setResults([]);
+    }
     const seen = new Set<string>();
     const pushItems = (items: SearchResult[]) => {
       const fresh = items.filter((item) => {
@@ -101,18 +109,41 @@ export default function AdultZonePage() {
       if (!res.ok) throw new Error(`请求失败（HTTP ${res.status}）`);
       const data = (await res.json()) as AdultResponse;
       if (data.categories?.length) setCategories(data.categories);
-      pushItems(data.results || []);
+      const list = data.results || [];
+      if (list.length > 0) catalogCache.set(kw, list);
+      if (!cached || list.length > 0) {
+        seen.clear();
+        setResults([]);
+        pushItems(list);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
+      if (!cached) setError(err instanceof Error ? err.message : '加载失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [catalogCache]);
 
   useEffect(() => {
     if (!gateReady || !authorized) return;
     void load(keyword);
   }, [keyword, load, gateReady, authorized]);
+
+  useEffect(() => {
+    if (!gateReady || !authorized) return;
+    const timer = window.setTimeout(() => {
+      for (const item of categories) {
+        if (catalogCache.has(item.id)) continue;
+        void fetch(`/api/adult/feed?cat=${encodeURIComponent(item.id)}`)
+          .then(async (res) => {
+            if (!res.ok) return;
+            const data = (await res.json()) as AdultResponse;
+            if (data.results?.length) catalogCache.set(item.id, data.results);
+          })
+          .catch(() => undefined);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [gateReady, authorized, categories, catalogCache]);
 
   const total = useMemo(() => results.length, [results]);
 
